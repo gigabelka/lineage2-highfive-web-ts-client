@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Box3, Matrix4, Object3D, Quaternion, Vector3, Vector4 } from "three";
 import { clamp, lerp, mapLinear } from "three/src/math/MathUtils";
 import type InstancedSpriteMesh from "./instanced-sprite-mesh";

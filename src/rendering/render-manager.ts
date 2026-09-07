@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import "./ue2-conventions";
 import "../materials/shader-chunks/register-chunks";
 import {
@@ -13,14 +14,8 @@ import {
   Matrix4,
   Object3D,
   Box3,
-  SphereGeometry,
   MeshBasicMaterial,
-  Camera,
   Color,
-  Sprite,
-  SpriteMaterial,
-  AdditiveBlending,
-  PlaneGeometry,
   AnimationMixer,
   AnimationClip,
   CameraHelper,
@@ -42,9 +37,7 @@ import RAPIER from "@dimforge/rapier3d";
 import type { ICollidable } from "@client/objects/objects";
 import Stats from "./stats";
 import Visualizer, { VisualizerMode, EmitterDebugInfo } from "./visualizer";
-import EnvColor from "@client/rendering/env-color";
 import L2Environment, {
-  FogBlendState,
   interpolateFogInfoColor,
   interpolateFogInfoSkyColor,
   interpolateFogInfoHazeColor,
@@ -82,7 +75,6 @@ const stats = new (Stats as any)(0);
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
 document.body.appendChild(stats.dom);
 
-const tmpBox = new Box3();
 const tmpCamDir = new Vector3();
 const tmpFarPoint = new Vector3();
 const tmpPawnWorldPos = new Vector3();
