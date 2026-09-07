@@ -22,6 +22,10 @@ uniform float opacity;
 #include <clipping_planes_pars_fragment>
 
 #ifdef USE_UV_TEXTURE
+    // sampler2DArray has no default precision in GLSL ES 3.00 - three only adds one
+    // to the vertex prefix, so the fragment stage must declare its own
+    precision highp sampler2DArray;
+
     #pragma params_include_layers
 
     vec4 addLayer(vec4 foreground, vec4 background) {

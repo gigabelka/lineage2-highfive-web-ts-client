@@ -1,8 +1,9 @@
-import { ShaderMaterial, Uniform, Color, Matrix3, FrontSide, DataTexture, RGFormat, OneFactor, CustomBlending, LinearFilter } from "three";
+import { ShaderMaterial, Uniform, Color, Matrix3, FrontSide } from "three";
 
 import VERTEX_SHADER from "./shader/shader-mesh-terrain.vs";
 import FRAGMENT_SHADER from "./shader/shader-mesh-terrain.fs";
 import { appendGlobalUniforms } from "../global-uniforms";
+import buildTerrainLayerArray from "./terrain-layer-array";
 
 class MeshTerrainMaterial extends ShaderMaterial {
     // @ts-ignore
@@ -14,101 +15,68 @@ class MeshTerrainMaterial extends ShaderMaterial {
             MASK_UV_INDEX: info.uvs.size.y - 1
         };
 
+        // one texture image unit per layer map + one per mask overruns
+        // MAX_TEXTURE_IMAGE_UNITS(16) on segments with many layers and the program
+        // fails to link. Pack every layer into a sampler2DArray so the fragment
+        // shader binds exactly two units regardless of layer count.
+        const validLayers = info.layers
+            .map((layer, index) => ({ index, map: layer.map, alphaMap: layer.alphaMap }))
+            .filter(layer => layer.map && layer.alphaMap);
+
         const uniforms: Record<string, Uniform> = appendGlobalUniforms({
             alphaTest: new Uniform(1e-3),
             diffuse: new Uniform(new Color(1, 1, 1)),
             opacity: new Uniform(1),
             uvTransform: new Uniform(new Matrix3()),
             transformSpecular: new Uniform(null),
-            uvs: new Uniform(info.uvs)
+            uvs: new Uniform(info.uvs),
+            terrainLayerMaps: new Uniform(buildTerrainLayerArray(validLayers.map(l => l.map.uniforms?.map?.texture ?? null))),
+            terrainLayerMasks: new Uniform(buildTerrainLayerArray(validLayers.map(l => l.alphaMap.uniforms?.map?.texture ?? null)))
         });
 
         const splitFragmentShader = FRAGMENT_SHADER.split("\n");
 
-        const pragmaSearchParams = "#pragma params_include_layers"
+        const pragmaSearchParams = "#pragma params_include_layers";
         const pragmaSearch = "#pragma include_layers";
 
         const paramsIndex = splitFragmentShader.findIndex(x => x.includes(pragmaSearchParams));
         const wsParams = " ".repeat(splitFragmentShader[paramsIndex].indexOf(pragmaSearchParams));
 
-        let layerIndex = splitFragmentShader.findIndex(x => x.includes(pragmaSearch));
-        const ws = " ".repeat(splitFragmentShader[layerIndex].indexOf(pragmaSearch));
+        const pragmaLayerIndex = splitFragmentShader.findIndex(x => x.includes(pragmaSearch));
+        const ws = " ".repeat(splitFragmentShader[pragmaLayerIndex].indexOf(pragmaSearch));
 
-        const paramsCode: string[] = [], layerCode: string[] = [];
+        const paramsCode = [
+            `${wsParams}uniform highp sampler2DArray terrainLayerMaps;`,
+            `${wsParams}uniform highp sampler2DArray terrainLayerMasks;`
+        ];
 
-        let needsPreamble = false;
-        let needsOpacityPreamble = false;
+        const layerCode: string[] = [];
 
-        let isFirst = false;
+        validLayers.forEach((layer, slice) => {
+            defines[`USE_LAYER_${layer.index}`] = "";
+            defines[`USE_LAYER_${layer.index}_OPACITY`] = "";
 
-        info.layers.forEach((layer, i) => {
-            if (!layer.map) return;
-            if (!layer.alphaMap) return;
-
-            needsPreamble = true;
-
-            const u = uniforms[`layer${i}`] = new Uniform({ map: {}, alphaMap: {} });
-
-            defines[`USE_LAYER_${i}`] = "";
-
-
-            needsOpacityPreamble = true;
-            defines[`USE_LAYER_${i}_OPACITY`] = "";
-
-            layerCode.push(`${ws}layerMask = texture2D(layer${i}.alphaMap.texture, vUv[MASK_UV_INDEX]);`);
-            paramsCode.push(`${wsParams}uniform MaskedLayerData layer${i};`);
-
-            Object.assign(u.value.alphaMap, layer.alphaMap.uniforms.map);
-            layer.alphaMap.uniforms.map.texture.premultiplyAlpha = true;
-            layer.alphaMap.uniforms.map.texture.needsUpdate = true;
-
-            layerCode.push(`${ws}layer = vec4(texture2D(layer${i}.map.texture, vUv[${i + 1}]).rgb, layerMask.r);`)
-            if (isFirst) {
-                layerCode.push(`${ws}texelDiffuse = addLayer(layer, texelDiffuse);`);
-            } else {
-                layerCode.push(`${ws}texelDiffuse = layer;`);
-                isFirst = true;
-            }
+            // masks all share MASK_UV_INDEX; each layer map keeps its own UV set (index + 1)
+            layerCode.push(`${ws}layerMask = texture2D(terrainLayerMasks, vec3(vUv[MASK_UV_INDEX], ${slice}.0));`);
+            layerCode.push(`${ws}layer = vec4(texture2D(terrainLayerMaps, vec3(vUv[${layer.index + 1}], ${slice}.0)).rgb, layerMask.r);`);
+            layerCode.push(slice === 0
+                ? `${ws}texelDiffuse = layer;`
+                : `${ws}texelDiffuse = addLayer(layer, texelDiffuse);`);
             layerCode.push("");
-
-            layer.map.uniforms.map.texture.premultiplyAlpha = true;
-            layer.map.uniforms.map.texture.needsUpdate = true;
-
-            Object.assign(u.value.map, layer.map.uniforms.map);
         });
 
-        if (needsPreamble) {
-            const preamble = [
-                `${wsParams}struct TextureData {`,
-                `${wsParams}    sampler2D texture;`,
-                `${wsParams}    vec2 size;`,
-                `${wsParams}};`,
-                "",
-                `${wsParams}struct LayerData {`,
-                `${wsParams}    TextureData map;`,
-                `${wsParams}};`,
-                ""
-            ];
-
-            if (needsOpacityPreamble) {
-                preamble.push(
-                    `${wsParams}struct MaskedLayerData {`,
-                    `${wsParams}    TextureData map;`,
-                    `${wsParams}    TextureData alphaMap;`,
-                    `${wsParams}};`,
-                    ""
-                );
-            }
-
-            paramsCode.unshift(...preamble);
+        if (validLayers.length === 0) {
+            // keep the generated shader well-formed for a segment with no usable layers
+            layerCode.push(`${ws}layerMask = vec4(1.0);`);
+            layerCode.push(`${ws}layer = texelDiffuse;`);
         }
 
         splitFragmentShader.splice(paramsIndex, 1, ...paramsCode);
 
-        layerIndex = splitFragmentShader.findIndex(x => x.includes(pragmaSearch))
+        const layerIndex = splitFragmentShader.findIndex(x => x.includes(pragmaSearch));
         splitFragmentShader.splice(layerIndex, 1, ...layerCode);
 
-        const fragmentShader = splitFragmentShader.join("\n")
+        const fragmentShader = splitFragmentShader.join("\n");
 
         super({
             defines,
