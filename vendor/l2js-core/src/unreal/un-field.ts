@@ -1,5 +1,5 @@
-import UExport from "../un-export";
-import APackage from "../un-package";
+import UExport from "./un-export";
+import APackage from "./un-package";
 import UObject from "./un-object";
 
 abstract class UField extends UObject {

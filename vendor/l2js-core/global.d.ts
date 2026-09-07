@@ -1,5 +1,4 @@
-import C = L2JS.Core;
-import IConstructable = C.IConstructable;
+type IConstructable = L2JS.Core.IConstructable;
 
 declare namespace EnumKeys {
     type PackageFlags_T = keyof typeof import("./src/unreal/un-package").PackageFlags_T;
