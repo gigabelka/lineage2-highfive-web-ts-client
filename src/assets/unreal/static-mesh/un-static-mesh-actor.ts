@@ -298,4 +298,3 @@ abstract class UStaticMeshActor extends UAActor {
 }
 
 export default UStaticMeshActor;
-export { UStaticMeshActor };

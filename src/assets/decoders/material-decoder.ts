@@ -733,4 +733,4 @@ function decodeMaterial(library: DecodeLibrary, info: GD.IBaseMaterialDecodeInfo
 }
 
 export default decodeMaterial;
-export { canonicalizeStaticMeshMaterials, decodeMaterial, decodeStaticMeshMaterial };
+export { canonicalizeStaticMeshMaterials, decodeStaticMeshMaterial };

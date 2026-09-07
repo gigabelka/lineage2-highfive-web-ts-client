@@ -26,4 +26,3 @@ class UConfigTimeEnv extends BaseConfigFile {
 }
 
 export default UConfigTimeEnv;
-export { UConfigTimeEnv };

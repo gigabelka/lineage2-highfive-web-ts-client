@@ -242,4 +242,4 @@ function decodeTextureAsB64(info: GD.ITextureDecodeInfo): string | null {
 }
 
 export default decodeTexture;
-export { decodeTexture, decodeTextureAsB64 };
+export { decodeTextureAsB64 };

@@ -111,4 +111,3 @@ abstract class FZoneInfo extends AInfo implements GD.IInfo {
 }
 
 export default FZoneInfo;
-export { FZoneInfo };

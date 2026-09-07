@@ -81,4 +81,4 @@ abstract class UMover extends UStaticMeshActor {
 }
 
 export default UMover;
-export { UMover, EMoverGlideType_T };
+export { EMoverGlideType_T };

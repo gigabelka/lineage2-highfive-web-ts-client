@@ -80,4 +80,4 @@ class TimeScale {
 }
 
 export default EnvColor;
-export { EnvColor, TimeColor, TimeHSV, TimeScale };
+export { TimeColor, TimeHSV, TimeScale };

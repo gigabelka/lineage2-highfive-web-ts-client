@@ -36,4 +36,3 @@ abstract class BaseConfigFile extends UEncodedFile {
 }
 
 export default BaseConfigFile;
-export { BaseConfigFile };

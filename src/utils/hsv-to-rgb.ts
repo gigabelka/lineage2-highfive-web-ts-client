@@ -49,4 +49,4 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 }
 
 export default hsvToRgb;
-export { hsvToRgb, saturationToBrightness };
+export { saturationToBrightness };

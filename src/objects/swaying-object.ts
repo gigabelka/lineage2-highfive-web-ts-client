@@ -78,4 +78,3 @@ class SwayingObject extends RotatingObject {
 }
 
 export default SwayingObject;
-export { SwayingObject };

@@ -12,4 +12,3 @@ class FVert implements C.IConstructable {
 }
 
 export default FVert;
-export { FVert };

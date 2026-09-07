@@ -121,7 +121,6 @@ class MeshTerrainMaterial extends ShaderMaterial {
 }
 
 export default MeshTerrainMaterial;
-export { MeshTerrainMaterial };
 
 type MeshTerrainMaterialParameters = {
     uvs: GD.MapData_T,

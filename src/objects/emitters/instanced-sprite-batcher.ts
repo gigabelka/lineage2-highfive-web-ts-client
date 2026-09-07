@@ -329,4 +329,4 @@ class InstancedSpriteBatcher {
 }
 
 export default InstancedSpriteBatcher;
-export { InstancedSpriteBatcher, isOrderIndependentAdditive };
+export { isOrderIndependentAdditive };

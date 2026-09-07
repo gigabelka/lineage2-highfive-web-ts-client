@@ -158,4 +158,3 @@ abstract class UStaticMeshInstance extends UObject {
 }
 
 export default UStaticMeshInstance;
-export { UStaticMeshInstance };

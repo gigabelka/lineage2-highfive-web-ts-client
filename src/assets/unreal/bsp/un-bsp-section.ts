@@ -44,4 +44,4 @@ class FBSPVertex implements C.IConstructable {
 }
 
 export default FBSPSection;
-export { FBSPSection, FBSPVertex };
+export { FBSPVertex };

@@ -247,4 +247,3 @@ abstract class FVector extends UObject implements GD.IDecodableStruct<GD.Vector3
 
 
 export default FVector;
-export { FVector };

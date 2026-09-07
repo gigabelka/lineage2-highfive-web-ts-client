@@ -365,4 +365,3 @@ class DecodeLibraryBuilder {
 }
 
 export default DecodeLibraryBuilder;
-export { DecodeLibraryBuilder };

@@ -141,4 +141,3 @@ function prepareLibraryForTransfer(root: any, exclude?: Set<ArrayBuffer>): Array
 }
 
 export default prepareLibraryForTransfer;
-export { prepareLibraryForTransfer };

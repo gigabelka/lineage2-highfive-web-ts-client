@@ -5,4 +5,3 @@ function getTypedArrayConstructor(countFaces: number): IndexTypedArray {
 }
 
 export default getTypedArrayConstructor;
-export { getTypedArrayConstructor };

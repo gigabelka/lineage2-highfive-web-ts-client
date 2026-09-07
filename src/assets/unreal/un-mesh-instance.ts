@@ -5,4 +5,3 @@ abstract class UMeshInstance extends UPrimitive {
 }
 
 export default UMeshInstance;
-export { UMeshInstance };

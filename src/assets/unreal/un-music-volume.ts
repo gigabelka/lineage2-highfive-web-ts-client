@@ -77,4 +77,3 @@ abstract class UMusicVolume extends UVolume {
 }
 
 export default UMusicVolume;
-export { UMusicVolume };

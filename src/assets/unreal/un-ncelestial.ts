@@ -51,4 +51,3 @@ abstract class UNCelestial extends UAActor {
 }
 
 export default UNCelestial;
-export { UNCelestial };

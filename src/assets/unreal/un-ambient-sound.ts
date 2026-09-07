@@ -86,4 +86,4 @@ const AS_TYPE_NAMES: Record<ASType1_T, GD.AmbientSoundTypes_T> = {
 };
 
 export default UAmbientSoundObject;
-export { UAmbientSoundObject, ASType1_T };
+export { ASType1_T };

@@ -112,4 +112,3 @@ abstract class FBox extends UObject {
 }
 
 export default FBox;
-export { FBox };

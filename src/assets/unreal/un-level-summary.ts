@@ -17,4 +17,3 @@ abstract class ULevelSummary extends UObject {
 }
 
 export default ULevelSummary;
-export { ULevelSummary };

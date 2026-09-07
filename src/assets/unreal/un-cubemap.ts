@@ -11,4 +11,3 @@ abstract class UCubemap extends UTexture {
 }
 
 export default UCubemap;
-export { UCubemap };

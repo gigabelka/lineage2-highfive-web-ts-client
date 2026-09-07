@@ -32,7 +32,6 @@ abstract class USpriteEmitter extends UParticleEmitter {
 }
 
 export default USpriteEmitter;
-export { USpriteEmitter };
 
 enum EParticleDirectionUsage_T {
     PTDU_None, // Always rotates the sprite towards the viewer. The sprites will always look the same, no matter what direction they are viewed from. Size -> UniformSize will be forced to True, so only the X component of Size -> SizeScale can be used to scale the sprites.

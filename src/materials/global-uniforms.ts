@@ -21,6 +21,6 @@ function appendGlobalUniforms(uniforms: UniformMap_T): UniformMap_T {
 }
 
 export default GLOBAL_UNIFORMS;
-export { appendGlobalUniforms, GLOBAL_UNIFORMS };
+export { appendGlobalUniforms };
 
 type UniformMap_T = Record<string, Uniform>;

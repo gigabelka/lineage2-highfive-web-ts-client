@@ -340,7 +340,6 @@ class AssetManager {
 }
 
 export default AssetManager;
-export { AssetManager };
 
 /**
  * Distance from the camera to a sector's bounds (0 inside it), using the same

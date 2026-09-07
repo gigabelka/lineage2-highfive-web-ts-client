@@ -220,4 +220,4 @@ namespace DDSConstants {
 }
 
 export default DDSConstants;
-export { DDSConstants, fourCCToInt32 };
+export { fourCCToInt32 };

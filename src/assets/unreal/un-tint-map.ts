@@ -13,4 +13,3 @@ abstract class FTIntMap extends UObject {
 }
 
 export default FTIntMap;
-export { FTIntMap };

@@ -272,7 +272,6 @@ abstract class UAActor extends UObject {
 }
 
 export default UAActor;
-export { UAActor };
 
 export enum ERenderStyle_T {
     STY_None,

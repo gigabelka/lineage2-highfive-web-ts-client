@@ -20,4 +20,3 @@ abstract class UVolume extends UBrush {
 }
 
 export default UVolume;
-export { UVolume };

@@ -105,4 +105,4 @@ class FAxis {
 }
 
 export default FQuaternion;
-export { FQuaternion, FAxis };
+export { FAxis };

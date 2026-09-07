@@ -154,4 +154,4 @@ const DROP_TYPE_NAMES: Record<EDropType_T, string> = {
 };
 
 export default UWetTexture;
-export { UWetTexture, UADrop, EDropType_T };
+export { UADrop, EDropType_T };

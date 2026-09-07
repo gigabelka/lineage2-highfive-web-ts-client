@@ -22,4 +22,3 @@ class FStaticMeshSection implements C.IConstructable {
 }
 
 export default FStaticMeshSection;
-export { FStaticMeshSection };

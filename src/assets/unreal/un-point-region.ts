@@ -23,4 +23,3 @@ abstract class UPointRegion extends UObject {
 }
 
 export default UPointRegion;
-export { UPointRegion };

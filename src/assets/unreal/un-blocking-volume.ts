@@ -13,4 +13,3 @@ abstract class UBlockingVolume extends UPhysicsVolume {
 }
 
 export default UBlockingVolume;
-export { UBlockingVolume };

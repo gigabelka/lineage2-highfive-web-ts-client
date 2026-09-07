@@ -147,4 +147,3 @@ abstract class ULevel extends ULevelBase {
 }
 
 export default ULevel;
-export { ULevel };

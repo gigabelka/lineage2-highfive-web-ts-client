@@ -112,4 +112,3 @@ abstract class UBeamEmitter extends UParticleEmitter {
 }
 
 export default UBeamEmitter;
-export { UBeamEmitter };

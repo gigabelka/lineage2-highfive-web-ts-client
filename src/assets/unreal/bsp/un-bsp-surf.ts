@@ -59,4 +59,3 @@ class FBSPSurf implements C.IConstructable {
 }
 
 export default FBSPSurf;
-export { FBSPSurf };

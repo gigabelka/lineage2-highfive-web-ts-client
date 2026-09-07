@@ -1570,7 +1570,6 @@ abstract class BaseEmitter extends Object3D {
 }
 
 export default BaseEmitter;
-export { BaseEmitter };
 
 class Particle extends Object3D {
     protected readonly particleSystem: BaseEmitter;

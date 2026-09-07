@@ -58,7 +58,6 @@ class InstancedParticleMaterial extends ShaderMaterial {
 }
 
 export default InstancedParticleMaterial;
-export { InstancedParticleMaterial };
 
 type InstancedParticleMaterialInitSettings_T = {
     map?: any,

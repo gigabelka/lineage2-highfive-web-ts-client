@@ -449,4 +449,4 @@ function calculateAttenuation(distance: number, radius: number, dx: number, dy: 
 }
 
 export default DynamicLight;
-export { DynamicLight, ColorHSV, getSunModifierInfo, getMoonModifierInfo, pitchYawToDirection };
+export { ColorHSV, getSunModifierInfo, getMoonModifierInfo, pitchYawToDirection };

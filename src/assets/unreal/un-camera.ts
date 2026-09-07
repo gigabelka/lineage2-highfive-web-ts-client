@@ -473,4 +473,3 @@ abstract class UCamera extends UAActor {
 }
 
 export default UCamera;
-export { UCamera };

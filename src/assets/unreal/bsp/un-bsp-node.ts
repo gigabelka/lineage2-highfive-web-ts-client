@@ -113,4 +113,4 @@ class FBSPNode implements C.IConstructable {
 }
 
 export default FBSPNode;
-export { FBSPNode, BspNodeFlags_T };
+export { BspNodeFlags_T };

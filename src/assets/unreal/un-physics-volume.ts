@@ -92,4 +92,3 @@ abstract class UPhysicsVolume extends UVolume {
 }
 
 export default UPhysicsVolume;
-export { UPhysicsVolume };

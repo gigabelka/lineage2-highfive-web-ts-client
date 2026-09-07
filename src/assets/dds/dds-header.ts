@@ -225,7 +225,6 @@ class DDSHeader {
 }
 
 export default DDSHeader;
-export { DDSHeader };
 
 const makeFourCC = (function () {
     const bytes = new DataView(new ArrayBuffer(4));

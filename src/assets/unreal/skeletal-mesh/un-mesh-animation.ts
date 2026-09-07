@@ -232,4 +232,3 @@ abstract class UMeshAnimation extends UObject {
 }
 
 export default UMeshAnimation;
-export { UMeshAnimation };

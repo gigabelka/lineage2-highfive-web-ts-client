@@ -23,4 +23,3 @@ abstract class UTextureModifyInfo extends UObject {
 }
 
 export default UTextureModifyInfo;
-export { UTextureModifyInfo };

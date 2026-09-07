@@ -580,4 +580,3 @@ class AudioManager {
 }
 
 export default AudioManager;
-export { AudioManager };

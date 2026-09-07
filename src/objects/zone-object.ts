@@ -1739,7 +1739,7 @@ class BSPNodeData {
 }
 
 export default ZoneObject;
-export { ZoneObject, SectorObject };
+export { SectorObject };
 
 interface ICollisionInfo {
     bounds: THREE.Box3,

@@ -180,4 +180,3 @@ abstract class UDecoLayer extends UObject {
 }
 
 export default UDecoLayer;
-export { UDecoLayer };

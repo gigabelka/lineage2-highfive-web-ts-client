@@ -24,4 +24,3 @@ function decodeEnv(props: GD.IL2NEnvDecodeInfo): EnvInfo {
 }
 
 export default decodeEnv;
-export { decodeEnv };

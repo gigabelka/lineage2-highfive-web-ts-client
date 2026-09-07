@@ -262,7 +262,6 @@ class BaseActor extends Object3D implements ICollidable {
 }
 
 export default BaseActor;
-export { BaseActor };
 
 class ActorState {
     public state: ValidStateNames_T = "idle";

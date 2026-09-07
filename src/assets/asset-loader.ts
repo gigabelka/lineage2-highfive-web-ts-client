@@ -318,4 +318,3 @@ class AssetLoader extends AAssetLoader<C.APackage, GA.UCorePackage, GA.UEnginePa
 }
 
 export default AssetLoader;
-export { AssetLoader };

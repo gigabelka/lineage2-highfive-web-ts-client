@@ -41,4 +41,3 @@ class EnvInfo {
 }
 
 export default EnvInfo;
-export { EnvInfo };

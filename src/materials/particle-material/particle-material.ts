@@ -129,7 +129,7 @@ class AnimatedParticleMaterial extends ShaderMaterial {
 }
 
 export default ParticleMaterial;
-export { ParticleMaterial, AnimatedParticleMaterial };
+export { AnimatedParticleMaterial };
 
 // Particle-specific blend table (SetParticleMaterial in the leaked source), separate from AActor::Style.
 export function getPartcileBlendingSettings(blendingMode: GD.ParticleBlendModes_T) {

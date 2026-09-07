@@ -245,4 +245,3 @@ class WetWaterTexture extends DataTexture {
 }
 
 export default WetWaterTexture;
-export { WetWaterTexture };

@@ -91,4 +91,3 @@ abstract class UPlayerStart extends UAActor {
 }
 
 export default UPlayerStart;
-export { UPlayerStart };

@@ -86,4 +86,3 @@ class RotatingObject extends CollidingMesh {
 }
 
 export default RotatingObject;
-export { RotatingObject };

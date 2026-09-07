@@ -23,4 +23,3 @@ class FURL implements C.IConstructable {
 }
 
 export default FURL;
-export { FURL };

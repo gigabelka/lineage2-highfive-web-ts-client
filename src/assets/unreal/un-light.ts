@@ -196,7 +196,7 @@ enum LightType_T {
 };
 
 export default ULight;
-export { ULight, LightEffect_T, LightType_T };
+export { LightEffect_T, LightType_T };
 
 function LODWORD(x: number) { return x & 0xFFFFFFFF };
 

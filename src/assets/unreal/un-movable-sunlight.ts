@@ -47,4 +47,3 @@ abstract class UNMovableSunLight extends ULight {
 }
 
 export default UNMovableSunLight;
-export { UNMovableSunLight };

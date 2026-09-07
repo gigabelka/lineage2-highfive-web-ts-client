@@ -39,4 +39,3 @@ class FStaticMeshVertexStream implements C.IConstructable {
 }
 
 export default FStaticMeshVertexStream;
-export { FStaticMeshVertexStream };

@@ -14,7 +14,6 @@ function decodeEnvColor(envColor: GD.IL2NEnvLightDecodeInfo): EnvColor {
 }
 
 export default decodeEnvColor;
-export { decodeEnvColor };
 
 function decodeTimeColor(array: [number, number, number, number, number][]) {
     return array.map(args => new TimeColor(args[0], args[1], args[2], args[3], args[4] ?? 255));

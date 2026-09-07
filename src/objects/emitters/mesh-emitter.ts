@@ -44,7 +44,6 @@ class MeshEmitter extends BaseEmitter {
 }
 
 export default MeshEmitter;
-export { MeshEmitter };
 
 class ParticleMesh extends Mesh {
     constructor(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[]) {

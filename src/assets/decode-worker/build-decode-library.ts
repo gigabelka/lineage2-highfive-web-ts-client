@@ -27,4 +27,3 @@ function buildDecodeLibrary(pkg: C.APackage, sectorName: string, settings: GD.Lo
 }
 
 export default buildDecodeLibrary;
-export { buildDecodeLibrary };

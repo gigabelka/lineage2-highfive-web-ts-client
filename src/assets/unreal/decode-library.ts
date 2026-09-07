@@ -57,4 +57,3 @@ class DecodeLibrary {
 }
 
 export default DecodeLibrary;
-export { DecodeLibrary };

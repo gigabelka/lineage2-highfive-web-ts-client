@@ -22,4 +22,3 @@ abstract class UNSun extends UNCelestial {
 }
 
 export default UNSun;
-export { UNSun };

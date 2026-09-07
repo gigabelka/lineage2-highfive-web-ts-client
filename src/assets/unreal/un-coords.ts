@@ -185,7 +185,6 @@ abstract class FCoords extends UObject {
 }
 
 export default FCoords;
-export { FCoords };
 
 function multiplyAxis(coords: FCoords, inVector: GA.FVector) {
     const outVector = FVector.make();

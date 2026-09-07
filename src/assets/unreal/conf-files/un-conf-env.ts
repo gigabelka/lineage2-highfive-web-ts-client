@@ -315,4 +315,3 @@ class UConfigEnv extends BaseConfigFile {
 }
 
 export default UConfigEnv;
-export { UConfigEnv };

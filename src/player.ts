@@ -385,7 +385,6 @@ class Player extends BaseActor implements ICollidable {
 }
 
 export default Player;
-export { Player };
 
 const normalToSlope = (() => {
 

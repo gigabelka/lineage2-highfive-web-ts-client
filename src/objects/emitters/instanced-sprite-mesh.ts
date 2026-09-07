@@ -95,4 +95,3 @@ class InstancedSpriteMesh extends Mesh<InstancedBufferGeometry, InstancedParticl
 }
 
 export default InstancedSpriteMesh;
-export { InstancedSpriteMesh };

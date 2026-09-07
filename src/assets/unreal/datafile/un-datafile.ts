@@ -50,7 +50,6 @@ class UDataFile extends UEncodedFile {
 }
 
 export default UDataFile;
-export { UDataFile };
 
 function loadSingleValue(readable: UDataFile, type: C.ValidTypes_T<any> | IDatContainerType | C.ValueTypeNames_T) {
     if (typeof type === "string") {

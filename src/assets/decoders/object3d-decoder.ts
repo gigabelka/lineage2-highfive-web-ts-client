@@ -913,4 +913,4 @@ function decodeObject3D(library: GD.DecodeLibrary, info: GD.IBaseObjectOrInstanc
 }
 
 export default decodeObject3D;
-export { decodeObject3D, decodePackage, decodeSectorCore, decodeSectorStaticMeshes, createSectorStaticMeshDecodeJob, stepSectorStaticMeshDecodeJob, SectorStaticMeshDecodeJob_T };
+export { decodePackage, decodeSectorCore, decodeSectorStaticMeshes, createSectorStaticMeshDecodeJob, stepSectorStaticMeshDecodeJob, SectorStaticMeshDecodeJob_T };

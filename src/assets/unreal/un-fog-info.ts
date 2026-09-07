@@ -97,4 +97,4 @@ abstract class UL2EnvironmentColorInfo extends UObject {
 }
 
 export default UL2FogInfo;
-export { UL2FogInfo, UL2EnvironmentColorInfo };
+export { UL2EnvironmentColorInfo };

@@ -26,4 +26,3 @@ abstract class ULevelInfo extends FZoneInfo implements GD.IInfo {
 }
 
 export default ULevelInfo;
-export { ULevelInfo };

@@ -51,4 +51,4 @@ abstract class UTerrainLayer extends UObject {
 }
 
 export default UTerrainLayer;
-export { UTerrainLayer, TextureMapAxis_T };
+export { TextureMapAxis_T };

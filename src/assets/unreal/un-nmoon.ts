@@ -36,4 +36,3 @@ abstract class UNMoon extends UNCelestial {
 }
 
 export default UNMoon;
-export { UNMoon };

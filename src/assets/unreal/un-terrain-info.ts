@@ -769,4 +769,4 @@ abstract class ATerrainInfo extends AInfo {
 }
 
 export default ATerrainInfo;
-export { ATerrainInfo, ETerrainRenderMethod_T };
+export { ETerrainRenderMethod_T };

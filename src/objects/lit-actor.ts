@@ -439,4 +439,3 @@ export interface MeshLight {
 }
 
 export default LitActorMesh;
-export { LitActorMesh }

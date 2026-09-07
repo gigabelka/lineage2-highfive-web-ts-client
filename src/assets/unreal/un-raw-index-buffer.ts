@@ -15,4 +15,3 @@ class FRawIndexBuffer implements C.IConstructable {
 }
 
 export default FRawIndexBuffer;
-export { FRawIndexBuffer };

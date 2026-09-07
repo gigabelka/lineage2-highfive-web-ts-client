@@ -14,6 +14,7 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 - `LIVE_RELOAD=0 npm run dev` — disables HMR. Use it for automated `?sectorTest` sweeps so a mid-sweep rebuild doesn't reload the sweep page and corrupt the report.
 - `npm test` — Vitest (`vitest run`), config in `vitest.config.ts` (standalone — it does **not** load `vite.config.ts` or its dev-server plugins). Picks up `src/**/*.{test,spec}.ts`. `npm run test:watch` / `npm run test:ui` for the interactive runner. Unit-level coverage is thin — most suites are new; add tests alongside the code you change.
 - No lint, no typecheck script. `tsconfig.json` is `emitDeclarationOnly` — types are never emitted to JS; esbuild/Vite strips them. Type errors do **not** fail the build or the tests.
+- `npm run knip` — reports unused files, exports, and `package.json` dependencies (`knip.json` lists the entry points: client graph, decode worker, `?sectorTest`/`?precacheSectors` modes, configs, `tools/`). Advisory only; it never fails the build. Expect false positives on the redundant `export { X }` next to `export default X` pattern and on classes registered only via the `un-package.ts` import hub.
 - `?sectorTest` (see below) is still the closest thing to a full integration test.
 - Path aliases live in **three** places now — keep them in sync: `vite.config.ts` (`resolve.alias`), `tsconfig.json` (`compilerOptions.paths`), and `vitest.config.ts` (`resolve.alias`).
 
@@ -62,9 +63,8 @@ When adding code, decide which side it belongs to: anything touching `src/assets
 ### Package loading & asset dependencies (worker-side)
 
 - `AssetLoader` (`src/assets/asset-loader.ts`) extends `AAssetLoader` from `@l2js/core`. `Instantiate(assetList)` registers one `UPackage` per entry in `html/asset-list.json`; `createPackage` points each at `/assets/<downloadPath>`.
-- `UPackage` / `UEncodedFile` are **constructor shells** (`src/constr-un-package.ts`, `src/constr-un-encoded-file.ts`) — every real method throws `"Mixin not loaded."` until the worker mixes in the implementation from `@unreal/*`. The client graph can hold the shell type without pulling UE2 code.
+- `UPackage` / `UEncodedFile` start as **constructor shells** from `@l2js/core` (`APackage`, `un-encoded-file.ts`) — real methods throw until the worker mixes in the implementation from `@unreal/*`. The client graph can hold the shell type without pulling UE2 code.
 - Refcounting lives here, keyed by package `path`: `using(pkg, { neverUnload })` loads a package, walks the transitive import closure (`getDependencies`), and increments a count per dependency (`Infinity` for `neverUnload`). `free(pkg)` decrements the same closure and calls `pkg.free()` on anything that hits 0. This is the per-worker refcount the pool comment above refers to.
-- `DeferredPackageLoader` (`src/assets/deferred-package-loader.ts`) is a lazy placeholder — just `{ loader, path, isDeferred }` — swapped for a real load on first use.
 
 ### Sector streaming
 

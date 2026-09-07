@@ -54,4 +54,3 @@ function GMath() {
 }
 
 export default GMath;
-export { GMath };

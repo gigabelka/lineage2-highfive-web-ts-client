@@ -27,4 +27,3 @@ abstract class UPawn extends UAActor {
 }
 
 export default UPawn;
-export { UPawn };

@@ -483,7 +483,6 @@ abstract class USkeletalMesh extends ULodMesh {
 }
 
 export default USkeletalMesh;
-export { USkeletalMesh };
 
 const MAX_BONES = 4;
 

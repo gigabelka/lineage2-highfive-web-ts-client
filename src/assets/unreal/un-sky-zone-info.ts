@@ -16,4 +16,3 @@ abstract class USkyZoneInfo extends FZoneInfo/* implements IInfo*/ {
 }
 
 export default USkyZoneInfo;
-export { USkyZoneInfo };

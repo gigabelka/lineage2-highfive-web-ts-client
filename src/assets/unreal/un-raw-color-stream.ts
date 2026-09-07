@@ -29,4 +29,3 @@ class FRawColorStream implements C.IConstructable {
 }
 
 export default FRawColorStream;
-export { FRawColorStream };

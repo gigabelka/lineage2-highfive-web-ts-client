@@ -14,4 +14,3 @@ function cyrb53(str: string, seed = 0) {
 }
 
 export default cyrb53;
-export { cyrb53 };

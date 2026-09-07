@@ -25,4 +25,3 @@ class FStaticMeshUVStream implements C.IConstructable {
 }
 
 export default FStaticMeshUVStream;
-export { FStaticMeshUVStream };

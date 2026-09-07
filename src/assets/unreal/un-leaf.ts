@@ -26,4 +26,3 @@ class FLeaf implements C.IConstructable {
 }
 
 export default FLeaf;
-export { FLeaf };

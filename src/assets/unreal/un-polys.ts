@@ -218,4 +218,4 @@ abstract class UPolys extends UObject {
 }
 
 export default UPolys;
-export { UPolys, PolyFlags_T };
+export { PolyFlags_T };

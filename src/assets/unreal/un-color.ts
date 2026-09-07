@@ -69,4 +69,3 @@ abstract class FColor extends UObject {
 }
 
 export default FColor;
-export { FColor };

@@ -70,4 +70,3 @@ class FStaticMeshTriangle implements C.IConstructable {
 }
 
 export default FStaticMeshTriangle;
-export { FStaticMeshTriangle };

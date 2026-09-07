@@ -107,4 +107,4 @@ const PixelFormatInfo = Object.freeze([
 }, {} as Record<number, UPixelFormatInfo>));
 
 export default ETextureFormat;
-export { ETextureFormat, PixelFormatInfo, ETexturePixelFormat };
+export { PixelFormatInfo, ETexturePixelFormat };

@@ -208,4 +208,3 @@ function isParticleEmitter(emitter: UObject): emitter is UParticleEmitter {
 }
 
 export default UEmitter;
-export { UEmitter };

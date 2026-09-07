@@ -27,4 +27,3 @@ abstract class USound extends UObject {
 }
 
 export default USound;
-export { USound };

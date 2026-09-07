@@ -11,7 +11,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:ui": "vitest --ui",
-        "patch-l2ini": "tsx tools/patch-l2ini.ts"
+        "patch-l2ini": "tsx tools/patch-l2ini.ts",
+        "knip": "knip"
     },
     "keywords": [],
     "author": "Ratchet",
@@ -19,11 +20,10 @@
     "devDependencies": {
         "@types/dat.gui": "^0.7.7",
         "@types/node": "^20.11.0",
-        "@types/node-forge": "^1.3.0",
-        "@types/pako": "^2.0.0",
         "@types/three": "~0.146.0",
         "@types/uuid": "^8.3.4",
         "@vitest/ui": "^2.1.9",
+        "knip": "^6.34.0",
         "path-browserify": "^1.0.1",
         "sass": "^1.85.0",
         "tsx": "^4.19.0",
@@ -33,11 +33,7 @@
     "dependencies": {
         "@dimforge/rapier3d-compat": "^0.9.0",
         "@l2js/core": "git+ssh://git@github.com:realratchet/l2js-core.git#stable",
-        "chokidar": "^5.0.0",
         "dat.gui": "^0.7.9",
-        "gmp-wasm": "^1.1.0",
-        "node-forge": "^1.3.1",
-        "pako": "^2.0.4",
         "three": "~0.146.0",
         "uuid": "^8.3.2"
     }

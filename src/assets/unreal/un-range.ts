@@ -66,7 +66,7 @@ abstract class FRangeVector extends UObject implements GD.IDecodableStruct<Range
 }
 
 export default FRange;
-export { FRange, FRangeVector };
+export { FRangeVector };
 
 type Range_T = [number, number];
 type RangeVector_T = { min: GD.Vector3Arr, max: GD.Vector3Arr };

@@ -446,4 +446,4 @@ abstract class UStaticMesh extends UPrimitive {
 }
 
 export default UStaticMesh;
-export { UStaticMesh, FStaticMeshTriangle };
+export { FStaticMeshTriangle };

@@ -66,4 +66,4 @@ class DisplayGammaPass {
 }
 
 export default DisplayGammaPass;
-export { DisplayGammaPass, GAMMA_STEPS };
+export { GAMMA_STEPS };

@@ -810,7 +810,6 @@ abstract class UTerrainSector extends UObject {
 
 
 export default UTerrainSector;
-export { UTerrainSector };
 export type { HeightMapInfo_T };
 
 type HeightMapInfo_T = { data: Uint16Array, info: GD.ITextureDecodeInfo, edgeTurns: Int32Array };

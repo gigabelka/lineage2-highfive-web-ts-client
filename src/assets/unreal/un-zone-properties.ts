@@ -29,4 +29,3 @@ class FZoneProperties implements C.IConstructable {
 }
 
 export default FZoneProperties;
-export { FZoneProperties };

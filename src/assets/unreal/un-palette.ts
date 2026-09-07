@@ -16,4 +16,3 @@ abstract class UPlatte extends UObject {
 }
 
 export default UPlatte;
-export { UPlatte };

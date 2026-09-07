@@ -82,4 +82,3 @@ class FLightmapIndex implements C.IConstructable {
 }
 
 export default FLightmapIndex;
-export { FLightmapIndex };

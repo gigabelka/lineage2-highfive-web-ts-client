@@ -164,4 +164,3 @@ class MovableObject extends CollidingMesh {
 }
 
 export default MovableObject;
-export { MovableObject };

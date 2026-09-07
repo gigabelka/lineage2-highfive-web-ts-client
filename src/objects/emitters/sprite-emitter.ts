@@ -65,7 +65,6 @@ class SpriteEmitter extends BaseEmitter {
 }
 
 export default SpriteEmitter;
-export { SpriteEmitter };
 
 class ParticleMesh extends Mesh<THREE.BufferGeometry, ParticleMaterial> {
     public spriteDirection: GD.SpriteDirections_T = "camera";

@@ -27,4 +27,3 @@ function decodeDDS(format: ETexturePixelFormat, mipCount: number, texWidth: numb
 }
 
 export default decodeDDS;
-export { decodeDDS };

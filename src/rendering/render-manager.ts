@@ -2415,7 +2415,6 @@ class RenderManager {
 }
 
 export default RenderManager;
-export { RenderManager }
 
 function addResizeListeners(manager: RenderManager) {
     global.addEventListener("resize", (manager as any).onHandleResize.bind(manager));

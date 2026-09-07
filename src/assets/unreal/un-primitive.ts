@@ -53,4 +53,3 @@ abstract class UPrimitive extends UObject {
 }
 
 export default UPrimitive;
-export { UPrimitive };

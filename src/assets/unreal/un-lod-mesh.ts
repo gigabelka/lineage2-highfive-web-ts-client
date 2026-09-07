@@ -118,7 +118,6 @@ abstract class ULodMesh extends UMesh {
 }
 
 export default ULodMesh;
-export { ULodMesh };
 
 
 

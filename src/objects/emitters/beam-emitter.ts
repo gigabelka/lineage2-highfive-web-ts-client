@@ -366,4 +366,3 @@ class BeamMesh extends Mesh<BufferGeometry, ParticleMaterial> {
 }
 
 export default BeamEmitter;
-export { BeamEmitter };

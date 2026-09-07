@@ -36,5 +36,5 @@ enum ESheerAxis_T {
 };
 
 export default FScale;
-export { FScale, ESheerAxis_T };
+export { ESheerAxis_T };
 

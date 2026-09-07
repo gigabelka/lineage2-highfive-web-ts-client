@@ -308,4 +308,3 @@ class DecodeWorkerClient {
 }
 
 export default DecodeWorkerClient;
-export { DecodeWorkerClient };

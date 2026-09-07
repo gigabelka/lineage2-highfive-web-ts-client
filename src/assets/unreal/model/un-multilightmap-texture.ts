@@ -114,4 +114,4 @@ class FMultiLightmapTexture implements C.IConstructable {
 }
 
 export default FMultiLightmapTexture;
-export { FMultiLightmapTexture, FStaticLightmapTexture };
+export { FStaticLightmapTexture };

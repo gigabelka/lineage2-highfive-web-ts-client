@@ -66,4 +66,4 @@ abstract class UMovableStaticMeshActor extends UStaticMeshActor {
 }
 
 export default UMovableStaticMeshActor;
-export { UMovableStaticMeshActor, FL2RotatorTime };
+export { FL2RotatorTime };

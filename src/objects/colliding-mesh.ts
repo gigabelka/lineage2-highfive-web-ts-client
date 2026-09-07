@@ -38,6 +38,5 @@ class CollidingMesh extends LitActorMesh implements ICollidable {
 }
 
 export default CollidingMesh;
-export { CollidingMesh };
 
 
