@@ -225,6 +225,15 @@ export default defineConfig({
         // @l2js/core is consumed as raw TS source inside node_modules
         exclude: ["@l2js/core"]
     },
+    css: {
+        preprocessorOptions: {
+            // opt into Dart Sass's modern API - the legacy JS API is deprecated
+            // and removed in Dart Sass 2.0 (Vite 5 still defaults to "legacy")
+            scss: {
+                api: "modern"
+            }
+        }
+    },
     worker: {
         format: "es"
     },
