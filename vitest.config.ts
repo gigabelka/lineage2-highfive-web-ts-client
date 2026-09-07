@@ -22,6 +22,7 @@ export default defineConfig({
             { find: /^@unreal\/(.*)$/, replacement: path.resolve(ROOT, "src/assets/unreal") + "/$1" },
             { find: /^@l2js\/core$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src/index.ts") },
             { find: /^@l2js\/core\/(?:src\/)?(.*)$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src") + "/$1" },
+            { find: /^gmp-wasm$/, replacement: path.resolve(ROOT, "vendor/gmp-wasm/dist/index.esm.min.js") },
             { find: /^@dimforge\/rapier3d$/, replacement: "@dimforge/rapier3d-compat" },
             { find: /^path$/, replacement: "path-browserify" }
         ]

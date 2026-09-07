@@ -24,7 +24,7 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 
 `c:/Games/HighFive/` must exist (the real client assets install). `vite.config.ts`'s `assetListPlugin` walks it on config-resolve (dev) and `buildStart` (build) and writes `html/asset-list.json` (git-ignored, auto-generated — never edit by hand; served at `/asset-list.json`). Without assets the build still runs but the app has nothing to load.
 
-`@l2js/core` is **vendored** into the repo at `vendor/l2js-core/` (raw TS source, upstream `realratchet/l2js-core`). It's consumed through the `@l2js/core` path alias, not as an npm dependency, so `npm install` needs no GitHub SSH access. Its two runtime deps (`pako`, `gmp-wasm`) are now direct dependencies in `package.json`. Edit `vendor/l2js-core/**` in place when core needs changes — there is no separate repo checkout.
+`@l2js/core` is **vendored** into the repo at `vendor/l2js-core/` (raw TS source, upstream `realratchet/l2js-core`). It's consumed through the `@l2js/core` path alias, not as an npm dependency, so `npm install` needs no GitHub SSH access. Its runtime dep `pako` is a direct dependency in `package.json`; its other runtime dep `gmp-wasm` (RSA decrypt) is **also vendored** at `vendor/gmp-wasm/` (prebuilt ESM bundle with the WASM embedded as base64, plus `.d.ts` types — no npm dependency, so an upstream unpublish/hijack of that niche single-maintainer package can't reach the decrypt path). It's consumed through the `gmp-wasm` path alias. Edit `vendor/l2js-core/**` in place when core needs changes — there is no separate repo checkout; to bump `gmp-wasm` follow the note in `vendor/gmp-wasm/package.json`.
 
 `html/` is Vite's `publicDir` served at `/` — it holds committed static assets (`skybox.png`) plus the generated `asset-list.json`. `bin/` is the build output directory (`build-dev` / `preview`), git-ignored.
 
@@ -79,7 +79,7 @@ When adding code, decide which side it belongs to: anything touching `src/assets
 
 ### Rendering
 
-`RenderManager` (`src/rendering/render-manager.ts`, ~2600 lines) — the render loop, camera controllers (Z-up variants of OrbitControls / PointerLockControls in `src/rendering/camera/`), postprocessing (`postprocessing/`), env/fog/sky (`l2-env.ts`, `sky-renderer.ts`, `env-*.ts`), audio (`audio-manager.ts`), and a `dat.gui` panel. Many constants are lifted directly from disassembly of the original client (referenced by address in comments) or from UE2 `.ini` defaults — preserve those citations.
+`RenderManager` (`src/rendering/render-manager.ts`, ~2600 lines) — the render loop, camera controllers (Z-up variants of OrbitControls / PointerLockControls in `src/rendering/camera/`), postprocessing (`postprocessing/`), env/fog/sky (`l2-env.ts`, `sky-renderer.ts`, `env-*.ts`), audio (`audio-manager.ts`), and a `lil-gui` panel. Many constants are lifted directly from disassembly of the original client (referenced by address in comments) or from UE2 `.ini` defaults — preserve those citations.
 
 `src/rendering/ue2-conventions.ts` duck-types three.js into UE2's coordinate space (Z-up, UE2 asset format) — imported for side effects at the top of `render-manager.ts`. Assets are kept in UE2 space rather than being swizzled on load.
 
@@ -105,6 +105,7 @@ Defined in **three** places: `vite.config.ts` (`resolve.alias`), `tsconfig.json`
 | `@unreal/*`  | `src/assets/unreal/*`                             |
 | `@native`    | `src/assets/unreal/scripts/un-native-registry.ts` |
 | `@l2js/core` | `vendor/l2js-core/src` (vendored raw source)      |
+| `gmp-wasm`   | `vendor/gmp-wasm/dist` (vendored prebuilt ESM)    |
 
 VSCode is configured for non-relative imports (`typescript.preferences.importModuleSpecifier: non-relative`) — prefer alias imports over `../../..`.
 

@@ -28,6 +28,9 @@
             "@dimforge/rapier3d": [
                 "./node_modules/@dimforge/rapier3d-compat"
             ],
+            "gmp-wasm": [
+                "./vendor/gmp-wasm/dist/types/index.d.ts"
+            ],
         },
         "noImplicitAny": true,
         "noImplicitReturns": true,

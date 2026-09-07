@@ -49,14 +49,14 @@ import Terrain from "../objects/terrain";
 import { ColorByte } from "@client/utils/color-byte";
 import EnvInfo from "@client/rendering/env-info";
 import AudioManager from "@client/rendering/audio-manager";
-import * as dat from "dat.gui";
+import { GUI } from "lil-gui";
 import type AssetManager from "@client/assets/asset-manager";
 import InstancedSpriteBatcher from "@client/objects/emitters/instanced-sprite-batcher";
 import MovableObject from "@client/objects/movable-object";
 import RotatingObject from "@client/objects/rotating-object";
 import DisplayGammaPass, { GAMMA_STEPS } from "./display-gamma";
 
-const gui = new dat.GUI({ autoPlace: false, width: 300 });
+const gui = new GUI({ autoPlace: false, width: 300 });
 Object.assign(gui.domElement.style, {
   position: "fixed",
   top: "0px",
@@ -418,14 +418,14 @@ class RenderManager {
     guiFolders.world
       .add(this.envConfig, "showLevel")
       .name("Show Level")
-      .onChange((v) => {
+      .onChange((v: boolean) => {
         this.objectGroup.visible = v;
       });
 
     guiFolders.world
       .add(this.envConfig, "moverPosition", 0, 1, 0.01)
       .name("Door Position")
-      .onChange((v) => {
+      .onChange((v: number) => {
         this.activeMovableObjects.clear();
         this.waitingMovableObjects.clear();
         this.movableObjects.forEach((mover) => mover.setPosition(v));
@@ -1350,7 +1350,7 @@ class RenderManager {
     guiFolders.quality
       .add(display, "gamma", steps)
       .name("Gamma")
-      .onChange((v) => {
+      .onChange((v: string | number) => {
         display.gamma = parseFloat(v as any);
         this.displayGammaEnabled = display.gamma !== 0;
 

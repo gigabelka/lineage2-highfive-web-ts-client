@@ -192,6 +192,8 @@ export default defineConfig({
             { find: /^@l2js\/core$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src/index.ts") },
             // some source files import "@l2js/core/src/…", others "@l2js/core/…" - collapse the optional "src/"
             { find: /^@l2js\/core\/(?:src\/)?(.*)$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src") + "/$1" },
+            // gmp-wasm is vendored (prebuilt ESM, WASM embedded) so the @l2js/core RSA-decrypt path has no npm dependency
+            { find: /^gmp-wasm$/, replacement: path.resolve(ROOT, "vendor/gmp-wasm/dist/index.esm.min.js") },
             { find: /^@dimforge\/rapier3d$/, replacement: "@dimforge/rapier3d-compat" },
             { find: /^path$/, replacement: "path-browserify" }
         ]

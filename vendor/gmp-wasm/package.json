@@ -1,0 +1,12 @@
+{
+    "name": "gmp-wasm",
+    "version": "1.1.0",
+    "description": "Vendored copy of gmp-wasm 1.1.0 (upstream Daninet/gmp-wasm). Consumed through the `gmp-wasm` path alias, not as an npm dependency, so the RSA-decrypt path of the vendored @l2js/core cannot be affected by an upstream unpublish/hijack. Only the prebuilt ESM bundle (WASM embedded as base64) and its .d.ts types are kept. To update: `npm i -D gmp-wasm@<ver>` in a scratch dir, copy dist/index.esm.min.js + dist/types + LICENSE here, bump this version.",
+    "type": "module",
+    "main": "dist/index.esm.min.js",
+    "module": "dist/index.esm.min.js",
+    "types": "dist/types/index.d.ts",
+    "license": "LGPL-3.0-only",
+    "author": "Dani Biro <danibiro93@gmail.com> (https://danibiro.com)",
+    "homepage": "https://github.com/Daninet/gmp-wasm#readme"
+}

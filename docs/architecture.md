@@ -7,7 +7,7 @@ build sub-graphs:
 
 | Graph | Root | Target | Owns |
 | --- | --- | --- | --- |
-| **Client / renderer** | [src/index.ts](../src/index.ts) | `web` | three.js, materials, cameras, DOM, `dat.gui`, physics, audio, sector streaming orchestration. |
+| **Client / renderer** | [src/index.ts](../src/index.ts) | `web` | three.js, materials, cameras, DOM, `lil-gui`, physics, audio, sector streaming orchestration. |
 | **Decode worker** | [src/assets/decode-worker/decode.worker.ts](../src/assets/decode-worker/decode.worker.ts) | worker | The *entire* UE2 asset pipeline: package deserialization, decode-info generation, static-mesh batching, DXT→RGBA conversion, the decoded-library binary (de)serializer. |
 
 The worker is spawned from
