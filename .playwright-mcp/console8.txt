@@ -1,0 +1,11 @@
+Total messages: 194 (Errors: 0, Warnings: 8)
+Returning 8 messages for level "warning"
+
+[WARNING] Cannot register 'INT64' because it's directly inheriting 'UObject'. @ http://127.0.0.1:8888/src/assets/unreal/un-object-mixin.ts:13
+[WARNING] Cannot register 'ParamMap' because it's directly inheriting 'UObject'. @ http://127.0.0.1:8888/src/assets/unreal/un-object-mixin.ts:13
+[WARNING] [decode-worker] library.bspZones[1].zoneInfo.children[0].children is a FObjectArray - normalized to a plain Array (fix the producer to store plain data) @ http://127.0.0.1:8888/src/assets/decode-worker/collect-transferables.ts:46
+[WARNING] WebGL: INVALID_VALUE: bufferSubData: srcOffset + length too large @ http://127.0.0.1:8888/node_modules/.vite/deps/three.module-Cg0SxxSv.js?v=db6d991b:41620
+[WARNING] WebGL: INVALID_VALUE: bufferSubData: srcOffset + length too large @ http://127.0.0.1:8888/node_modules/.vite/deps/three.module-Cg0SxxSv.js?v=db6d991b:41620
+[WARNING] WebGL: INVALID_VALUE: bufferSubData: srcOffset + length too large @ http://127.0.0.1:8888/node_modules/.vite/deps/three.module-Cg0SxxSv.js?v=db6d991b:41620
+[WARNING] WebGL: INVALID_VALUE: bufferSubData: srcOffset + length too large @ http://127.0.0.1:8888/node_modules/.vite/deps/three.module-Cg0SxxSv.js?v=db6d991b:41620
+[WARNING] WebGL: INVALID_VALUE: bufferSubData: srcOffset + length too large @ http://127.0.0.1:8888/node_modules/.vite/deps/three.module-Cg0SxxSv.js?v=db6d991b:41620

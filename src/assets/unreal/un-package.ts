@@ -24,6 +24,7 @@ import UConvexVolume from "./un-convex-volume";
 import UEmitter from "./un-emitter";
 import UMeshEmitter from "./emitters/un-mesh-emitter";
 import USpriteEmitter from "./emitters/un-sprite-emitter";
+import UTrailEmitter from "./emitters/un-trail-emitter";
 import FRotator from "./un-rotator";
 import UCamera from "./un-camera";
 import UPointRegion from "./un-point-region";
@@ -511,6 +512,12 @@ class UNativePackage extends ANativePackage {
       case "ParticleTimeScale":
         Constructor = PEmitter.UParticleTimeScale;
         break;
+      case "ParticleVelocityScale":
+        Constructor = PEmitter.UParticleVelocityScale;
+        break;
+      case "ParticleRevolutionScale":
+        Constructor = PEmitter.UParticleRevolutionScale;
+        break;
 
       default:
         throw new Error(
@@ -646,6 +653,9 @@ class UNativePackage extends ANativePackage {
         break;
       case "BeamEmitter":
         Constructor = UBeamEmitter;
+        break;
+      case "TrailEmitter":
+        Constructor = UTrailEmitter;
         break;
 
       case "LevelSummary":

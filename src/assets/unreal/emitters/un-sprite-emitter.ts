@@ -20,9 +20,12 @@ abstract class USpriteEmitter extends UParticleEmitter {
   }
 
   public getDecodeInfo(builder: GD.DecodeLibraryBuilder) {
-    //
+    // super returns undefined for emitters with no live particles / non-unit
+    // sizeScale (caller filters those out) - nothing to assign onto then
+    const baseInfo = super.getDecodeInfo(builder);
+    if (!baseInfo) return undefined;
 
-    return Object.assign(super.getDecodeInfo(builder)!, {
+    return Object.assign(baseInfo, {
       type: "SpriteEmitter",
       spriteDirection: directionNames[this.spriteDirection],
       projectionNormal: this.projectionNormal

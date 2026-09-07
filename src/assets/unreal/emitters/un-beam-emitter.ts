@@ -79,7 +79,12 @@ abstract class UBeamEmitter extends UParticleEmitter {
             relativeLength: f.relativeLength ?? 0
         }));
 
-        return Object.assign(super.getDecodeInfo(builder)!, {
+        // super returns undefined for emitters with no live particles / non-unit
+        // sizeScale (caller filters those out) - nothing to assign onto then
+        const baseInfo = super.getDecodeInfo(builder);
+        if (!baseInfo) return undefined;
+
+        return Object.assign(baseInfo, {
             type: "BeamEmitter",
             texture: builder.pullMaterial(this.texture),
             beam: {

@@ -116,17 +116,71 @@ abstract class UTexture extends UMaterial {
             throw new Error("Don't know what to do");
         }
 
-        // C4 licensee bit 0x100: the texture carries an extra block before the mip array
-        // (self-path FString + embedded pixel-shader microcode, e.g. FX_E_T.utx water
-        // surfaces). That layout isn't modelled yet - skip the export tail so the sector
-        // still decodes; decodeTexture() returns an empty material for mips=0.
+        // C4 licensee bit 0x100: the export carries a prepended block before the mip array —
+        // misc header ints, a self-name FString, and an embedded pixel-shader-microcode
+        // FString (e.g. FX_E_T.utx water surfaces, and every seamless-terrain heightmap
+        // Exp_<x>_<y>) — then a SINGLE lazy-array mip. That mip's trailing fields are
+        // USize(int32) VSize(int32) UBits(int8) VBits(int8) = 10 bytes ending exactly at the
+        // export end (readTail), and the raw pixel payload is USize*VSize*bpp bytes right
+        // before them. The prepended block isn't fully modelled, so rather than parse it we
+        // read the payload slice straight off the tail.
+        //
+        // Only G16 is reconstructed (terrain heightmaps — losing these turns the whole
+        // terrain into NaN geometry). Other 0x100 textures still fall back to the empty
+        // material: mips=0, decodeTexture() returns { materialType: "empty" }.
         if ((someFlag & 0x100) !== 0) {
+            if (this.format?.valueOf?.() === ETextureFormat.TEXF_G16 && this.width > 0 && this.height > 0) {
+                const TRAILING_BYTES = 4 + 4 + 1 + 1; // USize, VSize, UBits, VBits
+                const dataLen = this.width * this.height * 2; // G16: 2 bytes/texel
+                const dataStart = this.readTail - TRAILING_BYTES - dataLen;
+
+                const mip = new FMipmap();
+
+                mip.dataArray.setBackingView(pkg.readPrimitive(dataStart, dataLen));
+                mip.sizeW = this.width;
+                mip.sizeH = this.height;
+                mip.bitsW = Math.log2(this.width) | 0;
+                mip.bitsH = Math.log2(this.height) | 0;
+
+                (this.mipmaps as unknown as FArray<FMipmap>).push(mip);
+
+                this.readHead = this.readTail;
+            }
+
             this.skipRemaining = true;
             return this;
         }
 
-        this.mipmaps.load(pkg);
+        // Older licensee textures (e.g. verLicense 33 bitmaps embedded in pre-C4 .usx
+        // packages like Field_Deco_Artifact_S.usx) use a mip layout we don't model:
+        // there's no 0x100 flag, but an extra pre-mip block still sits between the
+        // properties and the mip array, so FArray.load reads a bogus count (zero, or
+        // garbage that overruns the buffer) and leaves the pixel payload unconsumed.
+        // Rather than assert-crash the whole sector decode, fall back to the same
+        // graceful skip the 0x100 path uses - decodeTexture() returns an empty
+        // material when mips=0.
+        const mipArrayStart = pkg.tell();
+        let mipLoadError: unknown = null;
+
+        try {
+            this.mipmaps.load(pkg);
+        } catch (e) {
+            mipLoadError = e;
+        }
+
         this.readHead = pkg.tell();
+
+        if (mipLoadError || (this.mipmaps.length === 0 && this.readTail - this.readHead > 0)) {
+            console.warn(
+                `UTexture '${this.objectName}' (${pkg.path}, verLicense ${verLicense}): ` +
+                `unmodelled mip layout${mipLoadError ? ` (${mipLoadError})` : ""}, ` +
+                `${this.readTail - mipArrayStart} bytes unread - skipping`,
+            );
+            this.mipmaps.length = 0;
+            pkg.seek(mipArrayStart, "set");
+            this.skipRemaining = true;
+            return this;
+        }
 
         console.assert(this.readTail === this.readHead);
 

@@ -56,6 +56,7 @@ abstract class UStaticMesh extends UPrimitive {
   declare protected collisionModel: GA.UModel;
 
   declare protected unkInt_Dx1: number; // maybe boolean
+  declare protected unkInt_Dx2: number; // L2 C4: int32 before RawTriangles, observed 0
 
   declare protected internalVersion: number;
   declare protected kPhysicsProps: number;
@@ -224,7 +225,22 @@ abstract class UStaticMesh extends UPrimitive {
         console.warn("Not supported yet");
         this.skipRemaining = true;
         if (triggerDebuggerOnUnsupported) return;
-      } else this.staticMeshTris.load(pkg);
+      } else {
+        // L2 C4 `field_deco_S` and friends (licensee 37) carry an extra int32
+        // (observed 0) between the sway/billboard tail and `staticMeshTris`;
+        // licensee <= 33 packages do not. Rather than guess the exact licensee
+        // cut-off, peek the next int32: the `staticMeshTris` TLazyArray always
+        // starts with its own end-pointer, which must be a forward offset inside
+        // this export. If the first int32 is not such an offset, it is the
+        // pre-array field and we consume it before loading the array.
+        const at = pkg.tell();
+        const maybeLazyEnd = pkg.read("int32") as number;
+        if (at < maybeLazyEnd && maybeLazyEnd <= this.readTail)
+          pkg.seek(at, "set"); // no extra field - rewind, it was the lazy end-ptr
+        else this.unkInt_Dx2 = maybeLazyEnd;
+
+        this.staticMeshTris.load(pkg);
+      }
     }
 
     if (verArchive < 81) {

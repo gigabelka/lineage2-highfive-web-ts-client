@@ -143,7 +143,7 @@ abstract class UEmitter extends UAActor {
     const library = builder.library;
     const emittersInfo: GD.EmitterConfig_T[] = [];
 
-    this.emitters.loadSelf().forEach((emitter) => {
+    (this.emitters?.loadSelf() ?? []).forEach((emitter) => {
       if (!emitter) return;
 
       if (!isParticleEmitter(emitter)) {

@@ -1,0 +1,11 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e3]:
+    - button "▾ Controls" [expanded] [ref=f8e4] [cursor=pointer]
+    - generic [ref=f8e5]:
+      - generic [ref=f8e6]:
+        - button "▾ World" [expanded] [ref=f8e7] [cursor=pointer]
+        - generic [ref=f8e8]: Empty
+      - generic [ref=f8e9]:
+        - button "▾ Quality" [expanded] [ref=f8e10] [cursor=pointer]
+        - generic [ref=f8e11]: Empty
+  - generic [ref=f8e12] [cursor=pointer]
