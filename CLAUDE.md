@@ -26,7 +26,7 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 
 `@l2js/core` is **vendored** into the repo at `vendor/l2js-core/` (raw TS source, upstream `realratchet/l2js-core`). It's consumed through the `@l2js/core` path alias, not as an npm dependency, so `npm install` needs no GitHub SSH access. Its runtime dep `pako` is a direct dependency in `package.json`; its other runtime dep `gmp-wasm` (RSA decrypt) is **also vendored** at `vendor/gmp-wasm/` (prebuilt ESM bundle with the WASM embedded as base64, plus `.d.ts` types — no npm dependency, so an upstream unpublish/hijack of that niche single-maintainer package can't reach the decrypt path). It's consumed through the `gmp-wasm` path alias. Edit `vendor/l2js-core/**` in place when core needs changes — there is no separate repo checkout; to bump `gmp-wasm` follow the note in `vendor/gmp-wasm/package.json`.
 
-`html/` is Vite's `publicDir` served at `/` — it holds committed static assets (`skybox.png`) plus the generated `asset-list.json`. `bin/` is the build output directory (`build-dev` / `preview`), git-ignored.
+`html/` is Vite's `publicDir` served at `/` — it holds committed static assets (`skybox.png`) plus the generated `asset-list.json`. `bin/` is the build output directory (`build-dev` / `preview`), git-ignored. `style/style.scss` is the single stylesheet, imported for side effect at the top of `src/index.ts` (hence the `sass` devDependency).
 
 ## Build system: Vite (`vite.config.ts`)
 
@@ -36,7 +36,7 @@ The project was migrated off Webpack; there is no more `configs/create-config.js
 - **`rawShadersPlugin`** — replaces `raw-loader`: `.vs`/`.fs`/`.glsl` imports resolve to the file text as a default-exported string. Imports in `src/materials/**` and `register-chunks.ts` carry **no `?raw` suffix**, so a plugin is required instead of Vite's built-in `?raw`.
 - **`devServerPlugin`** — byte-range-aware static serving of `c:/Games/HighFive/` under `/assets`, plus the `POST /sector-test/report` sink that appends to `sector-test-report.jsonl`.
 
-Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`. The `@l2js/core` alias maps to `vendor/l2js-core/src` in all three alias locations (`vite.config.ts`, `tsconfig.json`, `vitest.config.ts`); the regex form collapses the optional `src/` in `@l2js/core/src/…` vs `@l2js/core/…` imports, and `tsconfig.json` mirrors it with a two-entry `paths` fallback. `vendor/l2js-core/src/supported-extensions.js` was rewritten to plain ESM when vendored (it was CommonJS upstream), so the old `l2CoreCjsShimPlugin` is gone.
+Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`. The `@l2js/core` alias maps to `vendor/l2js-core/src` in all three alias locations (`vite.config.ts`, `tsconfig.json`, `vitest.config.ts`); the regex form collapses the optional `src/` in `@l2js/core/src/…` vs `@l2js/core/…` imports, and `tsconfig.json` mirrors it with a two-entry `paths` fallback. `vendor/l2js-core/src/supported-extensions.ts` was rewritten to plain ESM (now TS) when vendored (it was CommonJS `.js` upstream), so the old `l2CoreCjsShimPlugin` is gone. `vite.config.ts` keeps its own `SUPPORTED_EXTENSIONS` list (drives the `assetListPlugin` walk) — keep it aligned with the vendored one.
 
 ## Client / decode-worker separation (critical)
 
@@ -82,6 +82,8 @@ When adding code, decide which side it belongs to: anything touching `src/assets
 `RenderManager` (`src/rendering/render-manager.ts`, ~2600 lines) — the render loop, camera controllers (Z-up variants of OrbitControls / PointerLockControls in `src/rendering/camera/`), postprocessing (`postprocessing/`), env/fog/sky (`l2-env.ts`, `sky-renderer.ts`, `env-*.ts`), audio (`audio-manager.ts`), and a `lil-gui` panel. Many constants are lifted directly from disassembly of the original client (referenced by address in comments) or from UE2 `.ini` defaults — preserve those citations.
 
 `src/rendering/ue2-conventions.ts` duck-types three.js into UE2's coordinate space (Z-up, UE2 asset format) — imported for side effects at the top of `render-manager.ts`. Assets are kept in UE2 space rather than being swizzled on load.
+
+`src/rendering/visualizer.ts` (`Visualizer`, `VisualizerMode`) is an in-scene BSP/streaming debug overlay owned by `RenderManager` — **F3** toggles it, **F4** cycles modes (portals / zones / leaves / fogs / audio / emitters). It reads the current `SectorObject` and camera position each frame; the BSP data it draws (`ZoneObject`, `BSPZoneData` / `BSPLeafData` / `BSPNodeData`, `FogInfoObject`, `ILightInfo`) lives in `src/objects/zone-object.ts`, which also defines the `SectorObject` root that a decoded sector instantiates into.
 
 ### Actors (early / partially wired)
 
