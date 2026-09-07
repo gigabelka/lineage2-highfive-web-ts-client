@@ -306,7 +306,7 @@ class UConfigEnv extends BaseConfigFile {
         for (const cycle of cycles) {
             const [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
             if (nameMax.toLowerCase().startsWith("timeenvfilename")) {
-                const env = await (new UConfigTimeEnv(`assets/system/${nameVal.toLowerCase()}`).asReadable()).decode();
+                const env = await (new UConfigTimeEnv(`/assets/system/${nameVal.toLowerCase()}`).asReadable()).decode();
                 this.envSetup.timeEnv[cycle] = env.load(pkgNative, pkgEngine);
                 readOffset += readContent;
             }

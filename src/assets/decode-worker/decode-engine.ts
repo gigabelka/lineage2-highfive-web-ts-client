@@ -192,7 +192,7 @@ class DecodeEngine {
 
     public async decodeEnvConfig(): Promise<any> {
         const pkgL2Skies = await this.assetLoader.using(this.assetLoader.getPackage("l2_skies", "Texture"), { neverUnload: true });
-        const envFile = await (new UConfigEnv("assets/system/env.int").asReadable()).decode();
+        const envFile = await (new UConfigEnv("/assets/system/env.int").asReadable()).decode();
         const envConfig = await envFile.load(this.assetLoader.getNativePackage(), this.assetLoader.getEnginePackage(), pkgL2Skies);
 
         return envConfig.getDecodeInfo();
@@ -210,7 +210,7 @@ class DecodeEngine {
 
     public async decodeMusicInfo(): Promise<Record<number, string[]>> {
         try {
-            const file = await (new UDataFile(SCHEMA_MUSICINFO_DAT, "assets/system/musicinfo.dat").asReadable()).decode();
+            const file = await (new UDataFile(SCHEMA_MUSICINFO_DAT, "/assets/system/musicinfo.dat").asReadable()).decode();
 
             return Object.fromEntries(file.datarows.map((row: any) => [
                 row.id,

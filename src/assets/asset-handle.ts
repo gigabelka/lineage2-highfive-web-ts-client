@@ -10,6 +10,32 @@ interface ILazyAssetHandle {
     getReadable(): Promise<IReadyAssetHandle>;
 }
 
+/* Resolve an asset path against the ORIGIN ROOT, not the current script's URL.
+ * The decode worker is served from /src/assets/decode-worker/, so a bare
+ * relative "assets/system/env.int" resolves there, 404s, and Vite's dev server
+ * answers the 404 with index.html at HTTP 200 - which then gets written into
+ * OPFS as the asset and every later decode reads HTML instead of the file.
+ * Package paths already start with "/assets/" (asset-loader.createPackage);
+ * this makes every other caller safe too. */
+function assetUrl(path: string): string {
+    return new URL(path, self.location.origin).href;
+}
+
+/* Guard against the SPA fallback: a 404 answered with index.html (200,
+ * text/html) is the classic way an asset fetch "succeeds" with wrong bytes. */
+function assertRealAsset(path: string, response: Response): void {
+    if (!response.ok) throw new Error(`asset fetch ${path}: ${response.status} ${response.statusText}`);
+
+    if ((response.headers.get("content-type") ?? "").includes("text/html"))
+        throw new Error(`asset fetch ${path}: HTML response (SPA fallback?) - path is wrong`);
+}
+
+function looksLikeHtml(bytes: Uint8Array): boolean {
+    const head = new TextDecoder("latin1").decode(bytes.subarray(0, 64)).trimStart().toLowerCase();
+
+    return head.startsWith("<!doctype") || head.startsWith("<html");
+}
+
 async function fetchCached(path: string): Promise<ILazyAssetHandle> {
     const root = await navigator.storage.getDirectory();
 
@@ -29,10 +55,17 @@ async function fetchCached(path: string): Promise<ILazyAssetHandle> {
     await navigator.locks.request(`asset-cache:${path}`, async () => {
         const existingFile = await fh.getFile();
 
-        if (existingFile.size === 0) {
-            const response = await fetch(path);
+        // size 0 == cold; a small cached file may be a poisoned SPA-fallback HTML
+        // page from the pre-assetUrl bug - re-validate and self-heal those
+        let stale = existingFile.size === 0;
 
-            if (!response.ok) throw new Error(response.statusText);
+        if (!stale && existingFile.size < 4096)
+            stale = looksLikeHtml(new Uint8Array(await existingFile.slice(0, 64).arrayBuffer()));
+
+        if (stale) {
+            const response = await fetch(assetUrl(path));
+
+            assertRealAsset(path, response);
 
             const writable = await fh.createWritable();
             await response.body!.pipeTo(writable);
@@ -43,9 +76,9 @@ async function fetchCached(path: string): Promise<ILazyAssetHandle> {
 }
 
 async function uncachedFetch(path: string): Promise<IReadyAssetHandle> {
-    const response = await fetch(path);
+    const response = await fetch(assetUrl(path));
 
-    if (!response.ok) throw new Error(response.statusText);
+    assertRealAsset(path, response);
 
     const buffer = await response.arrayBuffer();
 

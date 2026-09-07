@@ -31,16 +31,23 @@ export function consumeNextValue(fileContents: string, startOffset: number): [st
     return [varName, varValue, lineEnd - startOffset + 2];
 }
 
-export function consumeHSV(line: string): [number, number, number, number] {
+// Some original HighFive config files ship malformed tuples with the closing
+// ')' missing (e.g. TimeEnv0.INT [StaticMeshAmbient] COLOR1=(T=0,R=110,G=84,B=77).
+// The payload is still fully parseable, so fall back to end-of-line instead of
+// throwing - "skipping non-critical data hiding in the binaries is acceptable".
+function tupleBounds(line: string): [number, number] {
     const offsetLeft = line.indexOf("(");
 
     if (offsetLeft === -1)
         throw new Error(`Could not find '(': ${line}`);
 
-    const offsetRight = line.indexOf(")", offsetLeft);
+    const rp = line.indexOf(")", offsetLeft);
 
-    if (offsetRight === -1)
-        throw new Error(`Could not find ')': ${line}`);
+    return [offsetLeft, rp === -1 ? line.length : rp];
+}
+
+export function consumeHSV(line: string): [number, number, number, number] {
+    const [offsetLeft, offsetRight] = tupleBounds(line);
 
     let t = 0, h = 0, s = 0, b = 0;
 
@@ -60,15 +67,7 @@ export function consumeHSV(line: string): [number, number, number, number] {
 }
 
 export function consumeRGB(line: string): [number, number, number, number, number] {
-    const offsetLeft = line.indexOf("(");
-
-    if (offsetLeft === -1)
-        throw new Error(`Could not find '(': ${line}`);
-
-    const offsetRight = line.indexOf(")", offsetLeft);
-
-    if (offsetRight === -1)
-        throw new Error(`Could not find ')': ${line}`);
+    const [offsetLeft, offsetRight] = tupleBounds(line);
 
     let t = 0, r = 0, g = 0, b = 0, a = 255;
 
@@ -89,15 +88,7 @@ export function consumeRGB(line: string): [number, number, number, number, numbe
 }
 
 export function consumeScale(line: string): [number, number] {
-    const offsetLeft = line.indexOf("(");
-
-    if (offsetLeft === -1)
-        throw new Error(`Could not find '(': ${line}`);
-
-    const offsetRight = line.indexOf(")", offsetLeft);
-
-    if (offsetRight === -1)
-        throw new Error(`Could not find ')': ${line}`);
+    const [offsetLeft, offsetRight] = tupleBounds(line);
 
     let t = 0, s = 0;
 
@@ -115,11 +106,9 @@ export function consumeScale(line: string): [number, number] {
 }
 
 export function consumeTuple(line: string): Record<string, string> {
-    const offsetLeft = line.indexOf("(");
-    if (offsetLeft === -1) return {};
+    if (line.indexOf("(") === -1) return {};
 
-    const offsetRight = line.indexOf(")", offsetLeft);
-    if (offsetRight === -1) return {};
+    const [offsetLeft, offsetRight] = tupleBounds(line);
 
     const result: Record<string, string> = {};
     const content = line.slice(offsetLeft + 1, offsetRight);
