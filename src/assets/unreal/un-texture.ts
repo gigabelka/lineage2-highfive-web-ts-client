@@ -112,41 +112,32 @@ abstract class UTexture extends UMaterial {
         }
 
         if (verArchive < 84) {
-            
+
             throw new Error("Don't know what to do");
         }
 
-        // C4 licensee bit 0x100: the export carries a prepended block before the mip array —
-        // misc header ints, a self-name FString, and an embedded pixel-shader-microcode
-        // FString (e.g. FX_E_T.utx water surfaces, and every seamless-terrain heightmap
-        // Exp_<x>_<y>) — then a SINGLE lazy-array mip. That mip's trailing fields are
-        // USize(int32) VSize(int32) UBits(int8) VBits(int8) = 10 bytes ending exactly at the
-        // export end (readTail), and the raw pixel payload is USize*VSize*bpp bytes right
-        // before them. The prepended block isn't fully modelled, so rather than parse it we
-        // read the payload slice straight off the tail.
-        //
-        // Only G16 is reconstructed (terrain heightmaps — losing these turns the whole
-        // terrain into NaN geometry). Other 0x100 textures still fall back to the empty
-        // material: mips=0, decodeTexture() returns { materialType: "empty" }.
+        // High Five licensee bit 0x100: the export prepends a fixed-ish block before the
+        // mip array — a run of header ints (one is a float 5.0) plus a self-path FString
+        // (and, on FX_E_T.utx water surfaces, an embedded pixel-shader-microcode FString) —
+        // then a completely ordinary `FArray<FMipmap>` that runs to the export end
+        // (readTail). The prepended block is variable-length (it carries strings), so
+        // rather than model it we locate the mip array by brute-scanning for the offset at
+        // which a trial `FArray<FMipmap>` parse (a) doesn't throw, (b) lands exactly on
+        // readTail, and (c) reports mip 0 at this texture's USize/VSize. That triple check
+        // is specific enough that a false positive inside the pixel payload is not a
+        // practical concern. Falls back to the graceful empty-material skip if no offset
+        // validates (e.g. a genuinely unmodelled FX layout).
         if ((someFlag & 0x100) !== 0) {
-            if (this.format?.valueOf?.() === ETextureFormat.TEXF_G16 && this.width > 0 && this.height > 0) {
-                const TRAILING_BYTES = 4 + 4 + 1 + 1; // USize, VSize, UBits, VBits
-                const dataLen = this.width * this.height * 2; // G16: 2 bytes/texel
-                const dataStart = this.readTail - TRAILING_BYTES - dataLen;
+            const startPos = pkg.tell();
+            const found = this.loadPrependedMipArray(pkg, startPos);
 
-                const mip = new FMipmap();
-
-                mip.dataArray.setBackingView(pkg.readPrimitive(dataStart, dataLen));
-                mip.sizeW = this.width;
-                mip.sizeH = this.height;
-                mip.bitsW = Math.log2(this.width) | 0;
-                mip.bitsH = Math.log2(this.height) | 0;
-
-                (this.mipmaps as unknown as FArray<FMipmap>).push(mip);
-
-                this.readHead = this.readTail;
+            if (found) {
+                this.readHead = pkg.tell();
+                console.assert(this.readTail === this.readHead);
+                return this;
             }
 
+            pkg.seek(startPos, "set");
             this.skipRemaining = true;
             return this;
         }
@@ -202,6 +193,93 @@ abstract class UTexture extends UMaterial {
             case ETextureFormat.TEXF_G16: return ETexturePixelFormat.TPF_G16;
             default: throw new Error(`Unknown UE2 pixel format: ${this.format}`);
         }
+    }
+
+    // High Five 0x100 textures (see doLoad): the `FArray<FMipmap>` is preceded by a
+    // variable-length prepended block. Brute-scan the byte offset at which the mip array,
+    // walked manually, consumes exactly up to the export end with mip 0 at this texture's
+    // USize/VSize; then load for real from there. The manual walk (rather than a trial
+    // `FArray.load`) keeps the scan cheap and silent - `FPrimitiveArrayLazy.load` would
+    // fire a `console.assert` at every wrong offset. Returns true and leaves `pkg`
+    // positioned at readTail on success.
+    private loadPrependedMipArray(pkg: C.APackage, startPos: number): boolean {
+        const readTail = this.readTail;
+        const avail = readTail - startPos;
+
+        if (avail <= 12 || !(this.width > 0) || !(this.height > 0)) return false;
+
+        const dv = pkg.readPrimitive(startPos, avail) as DataView;
+        const w = this.width | 0;
+        const h = this.height | 0;
+
+        // FCompactIndex (Unreal): byte 0 holds the sign in bit 7, six value bits in
+        // bits 0-5, and uses bit 6 to flag a continuation byte; each continuation byte
+        // then contributes seven value bits and chains via its own bit 7. Mirrors
+        // BufferValue's "compat32" decode in @l2js/core.
+        const readCompat = (pos: number): [value: number, len: number] => {
+            const b0 = dv.getUint8(pos);
+            let value = b0 & 0x3f;
+            let len = 1;
+
+            if (b0 & 0x40) {
+                let shift = 6;
+                let b: number;
+                do {
+                    if (len >= 5 || pos + len >= avail) break;
+                    b = dv.getUint8(pos + len);
+                    value |= (b & 0x7f) << shift;
+                    shift += 7;
+                    len++;
+                } while (b & 0x80);
+            }
+
+            return [value >>> 0, len];
+        };
+
+        // Walk an `FArray<FMipmap>` starting at `off` and return the offset it ends on,
+        // or -1 on any inconsistency (bad count, lazy-array skip marker mismatch, mip 0
+        // size mismatch). Each mip is
+        //   [int32 skipOffset][compat32 byteCount][byteCount payload][int32 USize][int32 VSize][int8 UBits][int8 VBits]
+        // and `skipOffset` is the pkg.tell()-space position right past the payload.
+        const walk = (off: number): number => {
+            const [mipCount, mcLen] = readCompat(off);
+            if (mipCount < 1 || mipCount > 20) return -1;
+
+            let pos = off + mcLen;
+
+            for (let k = 0; k < mipCount; k++) {
+                if (pos + 4 > avail) return -1;
+                const skipOffset = dv.getInt32(pos, true);
+                pos += 4;
+
+                const [byteCount, clen] = readCompat(pos);
+                pos += clen + byteCount; // compat32 + raw pixel payload
+
+                if (skipOffset !== startPos + pos) return -1;
+                if (pos + 10 > avail) return -1;
+
+                const sizeW = dv.getInt32(pos, true);
+                const sizeH = dv.getInt32(pos + 4, true);
+                pos += 10; // USize, VSize, UBits, VBits
+
+                if (sizeW < 1 || sizeH < 1) return -1;
+                if (k === 0 && (sizeW !== w || sizeH !== h)) return -1;
+            }
+
+            return pos;
+        };
+
+        for (let off = 0; off + 12 <= avail; off++) {
+            if (dv.getInt32(off + 1, true) <= startPos + off + 5) continue; // cheap reject
+            if (walk(off) !== avail) continue;
+
+            pkg.seek(startPos + off, "set");
+            this.mipmaps.load(pkg);
+
+            return this.mipmaps.length >= 1 && pkg.tell() === readTail;
+        }
+
+        return false;
     }
 
     protected decodeTexture(library: GD.DecodeLibrary): GD.ITextureDecodeInfo | GD.IBaseMaterialDecodeInfo {

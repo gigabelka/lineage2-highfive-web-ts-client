@@ -1,0 +1,47 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - button "▾ Controls" [expanded] [ref=e5] [cursor=pointer]
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "▾ World" [expanded] [ref=e8] [cursor=pointer]
+        - generic [ref=e9]:
+          - generic [ref=e10] [cursor=pointer]:
+            - generic [ref=e11]: Show Level
+            - checkbox "Show Level" [checked] [ref=e13]: ✓
+          - generic [ref=e14]:
+            - generic [ref=e15]: Door Position
+            - textbox "Door Position" [ref=e19]: "0"
+      - generic [ref=e20]:
+        - button "▾ Quality" [expanded] [ref=e21] [cursor=pointer]
+        - generic [ref=e23]:
+          - generic [ref=e24]: Fog Range
+          - generic [ref=e25] [cursor=pointer]:
+            - combobox "Fog Range" [ref=e26]:
+              - option "1 (2k-8k)"
+              - option "2 (3k-10k)"
+              - option "3 (4k-12k)"
+              - option "4 (5k-14k)" [selected]
+              - option "5 (8k-20k)"
+            - generic: 4 (5k-14k) ↕
+      - generic [ref=e27]:
+        - button "▾ Sky Layers" [expanded] [ref=e28] [cursor=pointer]
+        - generic [ref=e29]:
+          - generic [ref=e30] [cursor=pointer]:
+            - generic [ref=e31]: Celestials
+            - checkbox "Celestials" [checked] [ref=e33]: ✓
+          - generic [ref=e34] [cursor=pointer]:
+            - generic [ref=e35]: Haze
+            - checkbox "Haze" [checked] [ref=e37]: ✓
+          - generic [ref=e38] [cursor=pointer]:
+            - generic [ref=e39]: Stars/Clouds
+            - checkbox "Stars/Clouds" [checked] [ref=e41]: ✓
+      - generic [ref=e42]:
+        - button "▾ Audio" [expanded] [ref=e43] [cursor=pointer]
+        - generic [ref=e44]:
+          - generic [ref=e45]:
+            - generic [ref=e46]: Music Volume
+            - textbox "Music Volume" [ref=e50]: "0.10000000149011612"
+          - generic [ref=e51]:
+            - generic [ref=e52]: Ambient Volume
+            - textbox "Ambient Volume" [ref=e56]: "0.30000001192092896"
+  - generic [ref=e57] [cursor=pointer]
