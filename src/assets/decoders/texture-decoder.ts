@@ -14,7 +14,7 @@ import {
   RGB_S3TC_DXT1_Format,
   RGBA_S3TC_DXT1_Format,
 } from "three";
-import { DDSLoader } from "three/examples/jsm/loaders/DDSLoader";
+import { DDSLoader } from "three/examples/jsm/loaders/DDSLoader.js";
 import DecodeLibrary from "../unreal/decode-library";
 import WetWaterTexture from "@client/materials/wet-water-texture";
 import { dxt1ToRgba, dxt3ToRgba, dxt5ToRgba } from "./dxt-decode";
@@ -199,7 +199,8 @@ function decodeG16(info: GD.IDataTextureDecodeInfo): DataTexture {
 
 function decodeFloat(info: GD.IDataTextureDecodeInfo): DataTexture {
   const texture = new DataTexture(
-    info.buffer,
+    // `DataTexture` now takes a typed-array view, not a raw `ArrayBuffer`
+    new Float32Array(info.buffer),
     info.width,
     info.height,
     getFormat(info.format),
@@ -252,8 +253,10 @@ function decodeTexture(
   if (info.name) texture.name = info.name;
   if (library.anisotropy >= 0) texture.anisotropy = library.anisotropy;
 
-  const width = texture.image?.width ?? (texture as any).width ?? 1;
-  const height = texture.image?.height ?? (texture as any).height ?? 1;
+  // `THREE.Texture` is generic over its image type now; the data textures here carry a `{ width, height }` image.
+  const image = texture.image as { width?: number; height?: number } | undefined;
+  const width = image?.width ?? (texture as any).width ?? 1;
+  const height = image?.height ?? (texture as any).height ?? 1;
 
   return { texture, size: new Vector2(width, height) };
 }

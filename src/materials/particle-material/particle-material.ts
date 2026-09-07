@@ -14,6 +14,7 @@ import {
   SrcColorFactor,
   SrcAlphaFactor,
   ShaderMaterial,
+  type ShaderMaterialParameters,
   Uniform,
   UniformsUtils,
   UniformsLib,
@@ -92,7 +93,9 @@ class ParticleMaterial extends ShaderMaterial {
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
-      ...blendingSettings,
+      // the helper's blend-factor unions are wider than `ShaderMaterialParameters` allows
+      // (UE2 modes use dst factors on the src slot); they're valid GL enums at runtime.
+      ...(blendingSettings as ShaderMaterialParameters),
     });
 
     (this as any).isParticleMaterial = true;
@@ -149,7 +152,9 @@ class AnimatedParticleMaterial extends ShaderMaterial {
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
-      ...blendingSettings,
+      // the helper's blend-factor unions are wider than `ShaderMaterialParameters` allows
+      // (UE2 modes use dst factors on the src slot); they're valid GL enums at runtime.
+      ...(blendingSettings as ShaderMaterialParameters),
     });
 
     (this as any).isParticleMaterial = true;

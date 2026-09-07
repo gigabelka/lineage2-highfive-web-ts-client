@@ -4,6 +4,7 @@ import { appendGlobalUniforms } from "../global-uniforms";
 import { padTransformStages } from "./transform-stage";
 import {
   ShaderMaterial,
+  IUniform,
   Uniform,
   Matrix3,
   Color,
@@ -38,7 +39,7 @@ type ApplyParams_T = {
   name: SupportedShaderParams_T;
   sprites: Record<string, SpriteParam_T>;
   parameters: GD.IDecodedParameter;
-  uniforms: Record<string, Uniform>;
+  uniforms: Record<string, IUniform>;
   defines: Record<string, any>;
 };
 
@@ -147,7 +148,7 @@ export default class MeshStaticMaterial extends ShaderMaterial {
     const defines: Record<string, any> = { USE_FOG: "" };
     // UniformsLib.lights dropped - NUM_DIR_LIGHTS/NUM_SPOT_LIGHTS/NUM_HEMI_LIGHTS are always
     // 0 here (DynamicLight isn't a THREE.Light), so those ~19 uniforms never compiled in
-    const uniforms: Record<string, Uniform> = appendGlobalUniforms(
+    const uniforms: Record<string, IUniform> = appendGlobalUniforms(
       UniformsUtils.merge([
         {
           alphaTest: new Uniform(1e-3),

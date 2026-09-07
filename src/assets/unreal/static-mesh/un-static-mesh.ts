@@ -10,7 +10,7 @@ import {
   FStaticMeshCollisionTriangle,
   FStaticMeshCollisionNode,
 } from "./un-static-mesh-collision";
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 import FStaticMeshTriangle from "./un-static-mesh-triangle";
 import getTypedArrayConstructor from "@client/utils/typed-arrray-constructor";
 import StringSet from "@client/utils/string-set";

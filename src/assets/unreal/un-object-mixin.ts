@@ -1,6 +1,6 @@
 import { UObject } from "@l2js/core";
 import { UNativeRegistry } from "@l2js/core/src/unreal/un-native-registry";
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 
 // C4 script bytecode references native function index 197 (an int `>>>`-family operator).
 // core's disassembler (readToken) only needs a name, never executes it. Register it into

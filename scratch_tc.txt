@@ -1,0 +1,42 @@
+src/assets/decode-worker/decode-cache.ts(142,26): error TS2345: Argument of type 'Uint8Array<ArrayBufferLike>' is not assignable to parameter of type 'FileSystemWriteChunkType'.
+src/assets/decode-worker/decode-cache.ts(203,51): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+src/assets/decoders/dxt-decode.ts(268,5): error TS2322: Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+src/assets/decoders/texture-decoder.ts(202,5): error TS2345: Argument of type 'ArrayBuffer' is not assignable to parameter of type 'TypedArray'.
+src/assets/decoders/texture-decoder.ts(255,32): error TS2339: Property 'width' does not exist on type 'unknown'.
+src/assets/decoders/texture-decoder.ts(256,33): error TS2339: Property 'height' does not exist on type 'unknown'.
+src/assets/unreal/un-terrain-sector.ts(349,12): error TS2352: Conversion of type '{ textureType: "float"; buffer: Float32Array<ArrayBuffer>; materialType: "texture"; width: number; height: number; format: "rg"; }' to type 'IDataTextureDecodeInfo' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+src/base-actor.ts(147,39): error TS2339: Property 'toi' does not exist on type 'RayColliderIntersection'.
+src/base-actor.ts(160,37): error TS2339: Property 'toi' does not exist on type 'IntersectionResult'.
+src/base-actor.ts(160,45): error TS2339: Property 'toi' does not exist on type 'IntersectionResult'.
+src/materials/mesh-static-material/mesh-static-material.ts(151,7): error TS2345: Argument of type '{ [uniform: string]: IUniform<any>; }' is not assignable to parameter of type 'UniformMap_T'.
+src/materials/particle-material/instanced-particle-material.ts(12,47): error TS2345: Argument of type '{ [uniform: string]: IUniform<any>; }' is not assignable to parameter of type 'UniformMap_T'.
+src/materials/particle-material/instanced-particle-material.ts(35,15): error TS2345: Argument of type '{ blending: THREE.Blending; blendSrc?: THREE.BlendingSrcFactor | THREE.BlendingDstFactor; blendDst?: THREE.BlendingDstFactor; ... 8 more ...; side: 0 | 2; }' is not assignable to parameter of type 'ShaderMaterialParameters'.
+src/materials/particle-material/particle-material.ts(65,7): error TS2345: Argument of type '{ [uniform: string]: IUniform<any>; }' is not assignable to parameter of type 'UniformMap_T'.
+src/materials/particle-material/particle-material.ts(87,11): error TS2345: Argument of type '{ blending: Blending; blendSrc?: BlendingSrcFactor | BlendingDstFactor; blendDst?: BlendingDstFactor; blendSrcAlpha?: number; blendDstAlpha?: number; vertexShader: string; fragmentShader: string; ... 4 more ...; side: 2; }' is not assignable to parameter of type 'ShaderMaterialParameters'.
+src/materials/particle-material/particle-material.ts(122,7): error TS2345: Argument of type '{ [uniform: string]: IUniform<any>; }' is not assignable to parameter of type 'UniformMap_T'.
+src/materials/particle-material/particle-material.ts(144,11): error TS2345: Argument of type '{ blending: Blending; blendSrc?: BlendingSrcFactor | BlendingDstFactor; blendDst?: BlendingDstFactor; blendSrcAlpha?: number; blendDstAlpha?: number; vertexShader: string; fragmentShader: string; ... 4 more ...; side: 2; }' is not assignable to parameter of type 'ShaderMaterialParameters'.
+src/materials/shader-chunks/register-chunks.ts(4,13): error TS2551: Property 'l2_fog_fragment' does not exist on type '{ alphahash_fragment: string; alphahash_pars_fragment: string; alphamap_fragment: string; alphamap_pars_fragment: string; alphatest_fragment: string; alphatest_pars_fragment: string; ... 133 more ...; sprite_frag: string; }'. Did you mean 'fog_fragment'?
+src/materials/shader-chunks/register-chunks.ts(4,43): error TS2551: Property 'l2_fog_fragment' does not exist on type '{ alphahash_fragment: string; alphahash_pars_fragment: string; alphamap_fragment: string; alphamap_pars_fragment: string; alphatest_fragment: string; alphatest_pars_fragment: string; ... 133 more ...; sprite_frag: string; }'. Did you mean 'fog_fragment'?
+src/objects/emitters/instanced-sprite-batcher.ts(285,15): error TS2551: Property 'updateRange' does not exist on type 'InstancedBufferAttribute'. Did you mean 'updateRanges'?
+src/objects/emitters/instanced-sprite-batcher.ts(286,15): error TS2551: Property 'updateRange' does not exist on type 'InstancedBufferAttribute'. Did you mean 'updateRanges'?
+src/objects/emitters/instanced-sprite-mesh.ts(82,19): error TS2551: Property 'updateRange' does not exist on type 'InstancedBufferAttribute'. Did you mean 'updateRanges'?
+src/objects/emitters/instanced-sprite-mesh.ts(83,19): error TS2551: Property 'updateRange' does not exist on type 'InstancedBufferAttribute'. Did you mean 'updateRanges'?
+src/objects/lit-actor.ts(635,16): error TS2551: Property 'updateRange' does not exist on type 'BufferAttribute<BufferAttributeEventMap>'. Did you mean 'updateRanges'?
+src/objects/lit-actor.ts(636,16): error TS2551: Property 'updateRange' does not exist on type 'BufferAttribute<BufferAttributeEventMap>'. Did you mean 'updateRanges'?
+src/objects/objects.d.ts(4,53): error TS2344: Type 'Event<string, unknown>' does not satisfy the constraint 'Object3DEventMap'.
+src/objects/zone-object.ts(137,9): error TS2551: Property 'updateRange' does not exist on type 'BufferAttribute<BufferAttributeEventMap>'. Did you mean 'updateRanges'?
+src/objects/zone-object.ts(138,9): error TS2551: Property 'updateRange' does not exist on type 'BufferAttribute<BufferAttributeEventMap>'. Did you mean 'updateRanges'?
+src/rendering/camera/controllers/zup-orbit-controls.ts(156,33): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-orbit-controls.ts(290,41): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-orbit-controls.ts(866,33): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-orbit-controls.ts(969,37): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-orbit-controls.ts(1013,33): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-orbit-controls.ts(1017,33): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-orbit-controls.ts(1107,37): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-pointer-lock-controls.ts(59,32): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-pointer-lock-controls.ts(66,36): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/camera/controllers/zup-pointer-lock-controls.ts(69,36): error TS2345: Argument of type '{ type: string; }' is not assignable to parameter of type 'never'.
+src/rendering/render-manager.ts(643,7): error TS2345: Argument of type '"lock"' is not assignable to parameter of type 'never'.
+src/rendering/render-manager.ts(647,7): error TS2345: Argument of type '"unlock"' is not assignable to parameter of type 'never'.
+src/rendering/ue2-conventions.ts(10,10): error TS2551: Property 'DefaultUp' does not exist on type 'typeof Object3D'. Did you mean 'DEFAULT_UP'?
+vite.config.ts(206,17): error TS2769: No overload matches this call.

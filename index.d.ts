@@ -1,9 +1,14 @@
-import * as THREE from "three";
+import * as _THREE from "three";
 
 type ExtendsUObject<T> = T & C.UObject;
 
 
 declare global {
+    // `@types/three` >= ~0.150 dropped `export as namespace THREE` (the old UMD global).
+    // The codebase uses bare `THREE.*` in type positions everywhere, so re-expose the
+    // module namespace as a global alias here.
+    export import THREE = _THREE;
+
     namespace L2JS {
         namespace Client {
             namespace Rendering {

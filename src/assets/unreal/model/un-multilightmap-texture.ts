@@ -1,4 +1,4 @@
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 import { BufferValue, UObject } from "@l2js/core";
 import decompressDDS from "../../dds/dds-decode";
 import ETextureFormat, { ETexturePixelFormat } from "../un-tex-format";

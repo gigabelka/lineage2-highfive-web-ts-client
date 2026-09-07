@@ -1,5 +1,5 @@
 import { Matrix4, Matrix3, Vector3, Quaternion } from "three";
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 
 // data-only half of static mesh batching: merges shared material sections into library.geometries plus a
 // library.staticMeshBatches manifest and rewrites library.leafActors - worker-safe (three.js math only),

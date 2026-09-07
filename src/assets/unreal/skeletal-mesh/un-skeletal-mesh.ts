@@ -1,6 +1,6 @@
 import { BufferValue, UObject } from "@l2js/core";
 import getTypedArrayConstructor from "@client/utils/typed-arrray-constructor";
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 import FArray, {
   FArrayLazy,
   FPrimitiveArray,

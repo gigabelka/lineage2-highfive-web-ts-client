@@ -1,5 +1,5 @@
 import hsvToRgb, { saturationToBrightness } from "@client/utils/hsv-to-rgb";
-import { generateUUID, RAD2DEG } from "three/src/math/MathUtils";
+import { generateUUID, RAD2DEG } from "three/src/math/MathUtils.js";
 import UAActor from "./un-aactor";
 import FVector from "./un-vector";
 

@@ -1,4 +1,4 @@
-import { Uniform, UniformsLib, UniformsUtils, Vector3 } from "three";
+import { IUniform, Uniform, UniformsLib, UniformsUtils, Vector3 } from "three";
 
 const GLOBAL_UNIFORMS = Object.freeze(UniformsUtils.merge([
     UniformsLib.fog, {
@@ -23,4 +23,6 @@ function appendGlobalUniforms(uniforms: UniformMap_T): UniformMap_T {
 export default GLOBAL_UNIFORMS;
 export { appendGlobalUniforms };
 
-type UniformMap_T = Record<string, Uniform>;
+// `UniformsUtils.merge` is typed to return `IUniform` entries (no `.clone()`),
+// so the map is keyed on the looser interface that both `IUniform` and `Uniform` satisfy.
+type UniformMap_T = Record<string, IUniform>;

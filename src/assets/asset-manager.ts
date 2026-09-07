@@ -1,5 +1,5 @@
 import RenderManager from "@client/rendering/render-manager";
-import { WebGLCapabilities } from "three/src/renderers/webgl/WebGLCapabilities";
+import { WebGLCapabilities } from "three/src/renderers/webgl/WebGLCapabilities.js";
 import { createSectorStaticMeshDecodeJob, decodePackage, decodeSectorCore, stepSectorStaticMeshDecodeJob, SectorStaticMeshDecodeJob_T } from "@client/assets/decoders/object3d-decoder";
 import decodeEnv from "@client/assets/decoders/env-decoder";
 import DecodeWorkerClient from "@client/assets/decode-worker/decode-worker-client";

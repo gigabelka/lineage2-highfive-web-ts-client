@@ -139,7 +139,8 @@ async function writeCacheFile(fileName: string, sectorName: string, bytes: Uint8
     const handle = await dir.getFileHandle(fileName, { create: true });
     const writable = await handle.createWritable();
 
-    await writable.write(bytes);
+    // narrow the buffer generic for the DOM lib's `FileSystemWriteChunkType` (rejects SharedArrayBuffer-backed views)
+    await writable.write(bytes as Uint8Array<ArrayBuffer>);
     await writable.close();
 
     console.log(`[decode-cache] cached sector '${sectorName}' (${(bytes.length / 1024 / 1024).toFixed(1)} MB)`);
@@ -200,7 +201,7 @@ function refreshSoundBlobUris(library: any): void {
     for (const entry of soundCache.values()) {
         if (!entry?.data) continue;
 
-        entry.uri = URL.createObjectURL(new Blob([entry.data], { type: entry.mimeType }));
+        entry.uri = URL.createObjectURL(new Blob([entry.data as Uint8Array<ArrayBuffer>], { type: entry.mimeType }));
     }
 
     for (const info of library.ambientSounds ?? []) {

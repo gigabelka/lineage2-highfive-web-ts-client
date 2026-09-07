@@ -348,7 +348,7 @@ abstract class UTerrainSector extends UObject {
       terrainMaterial: info.uuid,
       uvs: {
         textureType: "float",
-        buffer: uvs,
+        buffer: uvs.buffer as ArrayBuffer,
         materialType: "texture",
         width: 17 * 17,
         height: layerCount + 2,

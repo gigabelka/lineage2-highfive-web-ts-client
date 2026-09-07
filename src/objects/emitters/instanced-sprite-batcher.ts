@@ -282,8 +282,8 @@ class SpriteParticleBatch {
   }
 
   protected markUpdated(attribute: InstancedBufferAttribute, count: number) {
-    attribute.updateRange.offset = 0;
-    attribute.updateRange.count = count;
+    attribute.clearUpdateRanges();
+    attribute.addUpdateRange(0, count);
     attribute.needsUpdate = true;
   }
 

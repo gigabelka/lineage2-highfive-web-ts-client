@@ -1,4 +1,4 @@
-import { randInt } from "three/src/math/MathUtils";
+import { randInt } from "three/src/math/MathUtils.js";
 
 const replaceBytes = new Uint8Array("OggS".split("").map(x => x.charCodeAt(0)));
 const MAX_AUDIOCHANNELS = 32, ROLLOFF = 0.5; // hardcoded from l2.ini

@@ -632,8 +632,8 @@ class LitActorMesh extends Mesh {
       rangeCount = (maxVertex - minVertex) * 3;
     } else if (this.elemRelight) this.elemRelight.fill(0);
 
-    attrColors.updateRange.offset = rangeOffset;
-    attrColors.updateRange.count = rangeCount;
+    attrColors.clearUpdateRanges();
+    attrColors.addUpdateRange(rangeOffset, rangeCount);
     attrColors.needsUpdate = true;
   }
 

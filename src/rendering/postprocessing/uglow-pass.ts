@@ -5,7 +5,7 @@ import {
   LinearFilter,
   RGBAFormat,
 } from "three";
-import { Pass, FullScreenQuad } from "three/examples/jsm/postprocessing/Pass";
+import { Pass, FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 
 /**
  * UGlowPass replicates the UE2 UGlowEffect post-processing system.

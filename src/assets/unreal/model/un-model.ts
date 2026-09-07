@@ -9,7 +9,7 @@ import FLeaf from "../un-leaf";
 import FBSPSection from "../bsp/un-bsp-section";
 import FLightmapIndex from "./un-lightmap-index";
 import FMultiLightmapTexture from "./un-multilightmap-texture";
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 import getTypedArrayConstructor from "@client/utils/typed-arrray-constructor";
 import FArray, {
   FObjectArray,

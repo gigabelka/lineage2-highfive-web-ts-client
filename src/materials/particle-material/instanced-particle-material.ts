@@ -1,4 +1,4 @@
-import { DoubleSide, FrontSide, ShaderMaterial, Uniform, UniformsUtils, UniformsLib, Vector3 } from "three";
+import { DoubleSide, FrontSide, ShaderMaterial, type ShaderMaterialParameters, Uniform, UniformsUtils, UniformsLib, Vector3 } from "three";
 import VERTEX_SHADER from "./shader/shader-particle-instanced.vs";
 import FRAGMENT_SHADER from "./shader/shader-particle-instanced.fs";
 import { appendGlobalUniforms } from "../global-uniforms";
@@ -42,7 +42,8 @@ class InstancedParticleMaterial extends ShaderMaterial {
             // Camera billboards continuously face the viewer, so rendering their
             // back face only duplicates every transparent draw in three r143.
             side: spriteDirection === "camera" ? FrontSide : DoubleSide,
-            ...blendingSettings
+            // see particle-material.ts: blend-factor unions are wider than the param type allows
+            ...(blendingSettings as ShaderMaterialParameters)
         });
 
         (this as any).isParticleMaterial = true;

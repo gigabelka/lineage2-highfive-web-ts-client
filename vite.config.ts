@@ -198,15 +198,8 @@ export default defineConfig({
             { find: /^path$/, replacement: "path-browserify" }
         ]
     },
-    css: {
-        preprocessorOptions: {
-            // opt into Dart Sass's modern API - the legacy JS API is deprecated
-            // and removed in Dart Sass 2.0 (Vite 5 still defaults to "legacy")
-            scss: {
-                api: "modern"
-            }
-        }
-    },
+    // Dart Sass's modern API is the only one left (the legacy JS API was removed
+    // in Dart Sass 2.0) and Vite 8 uses it unconditionally, so no `css.preprocessorOptions` needed.
     worker: {
         format: "es"
     },

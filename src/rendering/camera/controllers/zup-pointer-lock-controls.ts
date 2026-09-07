@@ -13,7 +13,13 @@ const _PI_2 = Math.PI / 2;
 /* Stay short of the poles so lookAt never gets a degenerate up-vector. */
 const _MAX_PITCH = _PI_2 - 1e-4;
 
-class ZUpPointerLockControls extends EventDispatcher {
+interface ZUpPointerLockControlsEventMap {
+    change: object;
+    lock: object;
+    unlock: object;
+}
+
+class ZUpPointerLockControls extends EventDispatcher<ZUpPointerLockControlsEventMap> {
     public readonly domElement: HTMLElement;
     public isLocked = false;
 

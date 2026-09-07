@@ -1,5 +1,5 @@
 import { WebGLRenderTarget, WebGLRenderer, ShaderMaterial, LinearFilter, RGBAFormat } from "three";
-import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass";
+import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 
 const GAMMA_STEPS = [1.2, 1.0, 0.8, 0.6, 0.4];
 

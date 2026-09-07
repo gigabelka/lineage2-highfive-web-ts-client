@@ -144,7 +144,7 @@ class BaseActor extends Object3D implements ICollidable {
             if (object !== this) {
                 const position = new Vector3()
                     .copy(ray.dir as THREE.Vector3)
-                    .multiplyScalar(i.toi)
+                    .multiplyScalar(i.timeOfImpact)
                     .add(ray.origin as THREE.Vector3);
 
                 collection.push({
@@ -157,7 +157,7 @@ class BaseActor extends Object3D implements ICollidable {
             return true;
         });
 
-        collection.sort((a, b) => a.toi - b.toi);
+        collection.sort((a, b) => a.timeOfImpact - b.timeOfImpact);
 
         return collection
     }

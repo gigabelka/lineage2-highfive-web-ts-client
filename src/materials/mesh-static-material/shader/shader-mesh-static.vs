@@ -8,6 +8,14 @@
     uniform mat3 uv2Transform;
 #endif
 
+// three r150+ <uv_vertex> reads the lightmap UV from the LIGHTMAP_UV macro, which
+// WebGLProgram only emits when material.lightMap is a real Texture. This material
+// toggles USE_LIGHTMAP through defines and samples the lightmap via vUv2 (below),
+// so feed the macro by hand to keep the built-in chunk compiling.
+#ifdef USE_LIGHTMAP
+    #define LIGHTMAP_UV uv2
+#endif
+
 #include <envmap_pars_vertex>
 #include <color_pars_vertex>
 #include <fog_pars_vertex>

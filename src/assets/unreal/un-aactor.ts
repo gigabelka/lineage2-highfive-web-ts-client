@@ -3,7 +3,7 @@
 import GMath from "@client/assets/unreal/un-gmath";
 import FMatrix from "@client/assets/unreal/un-matrix";
 import UObject, { APackage, UExport } from "@l2js/core";
-import { generateUUID } from "three/src/math/MathUtils";
+import { generateUUID } from "three/src/math/MathUtils.js";
 
 abstract class UAActor extends UObject {
     declare public readonly texModifyInfo: GA.UTextureModifyInfo;

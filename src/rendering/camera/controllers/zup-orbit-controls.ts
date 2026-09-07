@@ -18,11 +18,17 @@ import type { Matrix4 } from "three";
  * PerspectiveCamera.updateProjectionMatrix was; hence the fork.
  */
 
-const _changeEvent = { type: "change" };
-const _startEvent = { type: "start" };
-const _endEvent = { type: "end" };
+interface ZUpOrbitControlsEventMap {
+    change: object;
+    start: object;
+    end: object;
+}
 
-class ZUpOrbitControls extends EventDispatcher {
+const _changeEvent = { type: "change" as const };
+const _startEvent = { type: "start" as const };
+const _endEvent = { type: "end" as const };
+
+class ZUpOrbitControls extends EventDispatcher<ZUpOrbitControlsEventMap> {
     /* Real types for what render-manager.ts consumes; everything else below is
      * this fork's own internal, dynamically-assigned state (same as the vendored
      * original), covered by the index signature rather than typed field-by-field. */
