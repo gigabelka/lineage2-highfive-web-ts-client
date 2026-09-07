@@ -18,3 +18,4 @@ scripts/*
 traces/*
 /*-report.jsonl
 coverage/
+.eslintcache
