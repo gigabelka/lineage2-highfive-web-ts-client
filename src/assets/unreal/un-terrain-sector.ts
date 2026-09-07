@@ -96,7 +96,9 @@ abstract class UTerrainSector extends UObject {
   ): TerrainSegmentDecodeResult_T {
     const library = builder.library;
     const center = this.boundingBox.getCenter();
-    const { x: ox, y: oy, z: oz } = center;
+    const ox = Number.isFinite(center.x) ? center.x : 0;
+    const oy = Number.isFinite(center.y) ? center.y : 0;
+    const oz = Number.isFinite(center.z) ? center.z : 0;
 
     if (this.uuid in library.geometries)
       return {
@@ -143,39 +145,24 @@ abstract class UTerrainSector extends UObject {
         const idxOffset = y * 17 + x;
         const idxVertOffset = idxOffset * 3;
 
+        const rawHeight = data ? data[offset] : 0;
+        const height = Number.isFinite(rawHeight) ? rawHeight : 0;
+
         const {
           x: px,
           y: py,
           z: pz,
-        } = v.set(hmx, hmy, data[offset]).transformBy(info.toWorld);
-        // const [nx, nz, ny] = [
-        //     this.triangles.normals[0 + 3 * iii],
-        //     this.triangles.normals[1 + 3 * iii],
-        //     this.triangles.normals[2 + 3 * iii]
-        // ];
-        // const [ xxx, zzz, yyy ] = [
-        //     this.triangles.vertices[0 + 3 * iii],
-        //     this.triangles.vertices[1 + 3 * iii],
-        //     this.triangles.vertices[2 + 3 * iii]
-        // ]
+        } = v.set(hmx, hmy, height).transformBy(info.toWorld);
 
-        // console.log(xxx-px,yyy-py,zzz-pz, "|",  x, y, "|", info.getGlobalVertex(x, y), "|", iii)
+        const safePx = Number.isFinite(px) ? px : 0;
+        const safePy = Number.isFinite(py) ? py : 0;
+        const safePz = Number.isFinite(pz) ? pz : 0;
 
-        // iii++;
+        positions[idxVertOffset + 0] = safePx - ox;
+        positions[idxVertOffset + 1] = safePy - oy;
+        positions[idxVertOffset + 2] = safePz - oz;
 
-        //
-
-        if (edgeTurns[offset >> 5] & (1 << (offset & 0x1f))) {
-          // 124, 423
-        } else {
-          // 123, 134
-        }
-
-        positions[idxVertOffset + 0] = px - ox;
-        positions[idxVertOffset + 1] = py - oy;
-        positions[idxVertOffset + 2] = pz - oz;
-
-        trueBoundingBox.expandByPoint(tmpVector.set(px, py, pz));
+        trueBoundingBox.expandByPoint(tmpVector.set(safePx, safePy, safePz));
 
         // Initialize vertex colors to black (lighting will be applied later)
       }
@@ -287,16 +274,19 @@ abstract class UTerrainSector extends UObject {
           const offset =
             Math.min(hmy, width - 1) * width + Math.min(hmx, width - 1);
 
+          const rawHeight = data ? data[offset] : 0;
+          const height = Number.isFinite(rawHeight) ? rawHeight : 0;
+
           // rebuild the world-space (Z-up) vertex via info.toWorld
-          const worldVert = FVector.make(hmx, hmy, data[offset]).transformBy(
+          const worldVert = FVector.make(hmx, hmy, height).transformBy(
             info.toWorld,
           );
 
           // Transform by the layer's texture matrix to get UVs
           const uvVert = worldVert.applyMatrix4(layer.terrainMatrix);
 
-          uvs[layerOffset + idxOffset + 0] = uvVert.x;
-          uvs[layerOffset + idxOffset + 1] = uvVert.y;
+          uvs[layerOffset + idxOffset + 0] = Number.isFinite(uvVert.x) ? uvVert.x : 0;
+          uvs[layerOffset + idxOffset + 1] = Number.isFinite(uvVert.y) ? uvVert.y : 0;
         }
       }
     }
@@ -318,6 +308,15 @@ abstract class UTerrainSector extends UObject {
       }
     }
 
+    const effectiveMin =
+      this.boundingBox.isValid && Number.isFinite(this.boundingBox.min?.x)
+        ? this.boundingBox.min
+        : trueBoundingBox.min;
+    const effectiveMax =
+      this.boundingBox.isValid && Number.isFinite(this.boundingBox.max?.x)
+        ? this.boundingBox.max
+        : trueBoundingBox.max;
+
     const geometryInfo = {
       attributes: {
         positions,
@@ -329,10 +328,10 @@ abstract class UTerrainSector extends UObject {
       bounds: {
         box: trueBoundingBox.isValid
           ? {
-              min: this.boundingBox.min
+              min: effectiveMin
                 .sub(center)
                 .getElements() as GD.Vector3Arr,
-              max: this.boundingBox.max
+              max: effectiveMax
                 .sub(center)
                 .getElements() as GD.Vector3Arr,
             }

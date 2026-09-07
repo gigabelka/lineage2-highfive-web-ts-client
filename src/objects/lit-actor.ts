@@ -633,7 +633,9 @@ class LitActorMesh extends Mesh {
     } else if (this.elemRelight) this.elemRelight.fill(0);
 
     attrColors.clearUpdateRanges();
-    attrColors.addUpdateRange(rangeOffset, rangeCount);
+    if (rangeCount !== -1) {
+      attrColors.addUpdateRange(rangeOffset, rangeCount);
+    }
     attrColors.needsUpdate = true;
   }
 

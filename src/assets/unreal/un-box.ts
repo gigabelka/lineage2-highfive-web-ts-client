@@ -17,7 +17,15 @@ class FBox extends UObject {
     declare public isValid: 0 | 1;
 
     public getSize() { return !this.isValid ? FVector.make() : this.max.sub(this.min); }
-    public getCenter() { return !this.isValid ? FVector.make() : this.max.add(this.min).multiplyScalar(0.5); }
+    public getCenter() {
+        if (!this.isValid) return FVector.make();
+        if (!Number.isFinite(this.min.x) || !Number.isFinite(this.max.x) ||
+            !Number.isFinite(this.min.y) || !Number.isFinite(this.max.y) ||
+            !Number.isFinite(this.min.z) || !Number.isFinite(this.max.z)) {
+            return FVector.make();
+        }
+        return this.max.add(this.min).multiplyScalar(0.5);
+    }
     public getExtents() { return !this.isValid ? FVector.make() : this.max.sub(this.min).multiplyScalar(0.5); }
 
     public constructor(min?: GA.FVector, max?: GA.FVector, isValid?: 0 | 1) {

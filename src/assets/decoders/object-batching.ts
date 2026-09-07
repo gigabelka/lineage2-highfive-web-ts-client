@@ -315,6 +315,9 @@ function mergeTerrainGeometries(sectors: Terrain[]) {
         const vCount = pos.count;
         const iCount = idx ? idx.count : 0;
         const sectorPos = sector.position;
+        const sx = Number.isFinite(sectorPos.x) ? sectorPos.x : 0;
+        const sy = Number.isFinite(sectorPos.y) ? sectorPos.y : 0;
+        const sz = Number.isFinite(sectorPos.z) ? sectorPos.z : 0;
 
         const posArray = pos.array as any;
         const normArray = norm ? norm.array as any : null;
@@ -325,9 +328,13 @@ function mergeTerrainGeometries(sectors: Terrain[]) {
         for (let i = 0; i < vCount; i++) {
             const vi = vertexOffset + i;
 
-            mergedPositions[vi * 3 + 0] = posArray[i * 3 + 0] + sectorPos.x;
-            mergedPositions[vi * 3 + 1] = posArray[i * 3 + 1] + sectorPos.y;
-            mergedPositions[vi * 3 + 2] = posArray[i * 3 + 2] + sectorPos.z;
+            const px = posArray ? posArray[i * 3 + 0] : 0;
+            const py = posArray ? posArray[i * 3 + 1] : 0;
+            const pz = posArray ? posArray[i * 3 + 2] : 0;
+
+            mergedPositions[vi * 3 + 0] = (Number.isFinite(px) ? px : 0) + sx;
+            mergedPositions[vi * 3 + 1] = (Number.isFinite(py) ? py : 0) + sy;
+            mergedPositions[vi * 3 + 2] = (Number.isFinite(pz) ? pz : 0) + sz;
 
             if (normArray) {
                 mergedNormals[vi * 3 + 0] = normArray[i * 3 + 0];

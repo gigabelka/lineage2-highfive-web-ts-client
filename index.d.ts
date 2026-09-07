@@ -68,6 +68,7 @@ declare global {
                     | "SkillAction_SwordTrail"
                     | "ServerBlockingVolume"
                     | "BeamEmitter"
+                    | "TrailEmitter"
                     | "TexOscillatorTriggered"
                     | "LNMovableStaticMeshActor"
                     | "L2MovableStaticMeshActor"

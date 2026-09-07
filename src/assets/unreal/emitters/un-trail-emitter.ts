@@ -33,7 +33,7 @@ abstract class UTrailEmitter extends UParticleEmitter {
         });
     }
 
-    public getDecodeInfo(_builder: GD.DecodeLibraryBuilder) {
+    public getDecodeInfo(_builder: GD.DecodeLibraryBuilder): GD.EmitterConfig_T | undefined {
         console.warn(`TrailEmitter '${this.objectName}' is not supported yet, skipping`);
         return undefined;
     }
