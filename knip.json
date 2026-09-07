@@ -1,0 +1,24 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "entry": [
+        "src/index.ts",
+        "src/assets/decode-worker/decode.worker.ts",
+        "src/sector-test.ts",
+        "src/sector-precache.ts",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "tools/patch-l2ini.ts",
+        "src/**/*.{test,spec}.ts"
+    ],
+    "project": ["src/**/*.ts"],
+    "ignore": ["**/*.d.ts", "bin/**", "configs/**", "reference/**"],
+    "ignoreDependencies": ["@l2js/core", "path-browserify"],
+    "paths": {
+        "@native": ["./src/assets/unreal/scripts/un-native-registry.ts"],
+        "@client/*": ["./src/*"],
+        "@unreal/*": ["./src/assets/unreal/*"],
+        "@l2js/core": ["./node_modules/@l2js/core/src/index.ts"],
+        "@l2js/core/*": ["./node_modules/@l2js/core/src/*"],
+        "@dimforge/rapier3d": ["./node_modules/@dimforge/rapier3d-compat"]
+    }
+}
