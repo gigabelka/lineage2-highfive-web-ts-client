@@ -12,7 +12,7 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 - `npm run build-dev` — `vite build --mode development` into `bin/` (`emptyOutDir`, sourcemaps, `target: chrome80`).
 - `npm run preview` — serve a prior `bin/` build.
 - `LIVE_RELOAD=0 npm run dev` — disables HMR. Use it for automated `?sectorTest` sweeps so a mid-sweep rebuild doesn't reload the sweep page and corrupt the report.
-- `npm test` — Vitest (`vitest run`), config in `vitest.config.ts` (standalone — it does **not** load `vite.config.ts` or its dev-server plugins). Picks up `src/**/*.{test,spec}.ts`. `npm run test:watch` / `npm run test:ui` for the interactive runner. Unit-level coverage is thin — most suites are new; add tests alongside the code you change.
+- `npm test` — Vitest (`vitest run`), config in `vitest.config.ts` (standalone — it does **not** load `vite.config.ts` or its dev-server plugins). Picks up `src/**/*.{test,spec}.ts`. `npm run test:watch` / `npm run test:ui` for the interactive runner. Run one file with `npx vitest run src/path/to/file.test.ts`, one case with `npx vitest run -t "test name"`. Unit-level coverage is almost nonexistent — the only spec is the smoke test in `src/__smoke__/`; `?sectorTest` is the real integration check. Add tests alongside the code you change.
 - `tsconfig.json` is `emitDeclarationOnly` — types are never emitted to JS; esbuild/Vite strips them. Type errors do **not** fail the build or the tests.
 - `npm run lint` / `npm run lint:fix` — ESLint v10 flat config (`eslint.config.mjs`): `js.recommended` + `typescript-eslint` recommended (no type-aware rules). Advisory only, not wired into `build`/`test` — like `knip`. Stylistic noise on the intentionally "dirty" reverse-engineering code is downgraded to `warn`; only rules that flag real defects (assignment in condition, unreachable code, duplicate keys, `case` fall-through) stay errors. Ignores `bin/ configs/ reference/ docs/ html/ *.d.ts *-report.jsonl`.
 - `npm run typecheck` — `tools/typecheck.ts` (via `tsx`): runs `tsc --noEmit`, prints all output, but sets the exit code **only** from error lines outside `node_modules/`. `@l2js/core` is consumed as raw TS source so `tsc` type-checks it too and it emits ~30 errors unrelated to this project's code; the wrapper suppresses those. Advisory, same as `lint`/`knip`.
@@ -46,7 +46,7 @@ Still two logically separate graphs, now expressed through Vite:
 1. **Client** (`src/index.ts`, `target: web`) — the renderer. three.js, materials, camera, DOM. **Must stay free of UE2 asset-parsing code.**
 2. **Decode worker** (`src/assets/decode-worker/decode.worker.ts`) — owns the _entire_ UE2 asset pipeline (package deserialization, decode-info generation, batching, DXT→RGBA). Spawned from `decode-worker-client.ts` as `new Worker(new URL("./decode.worker.ts", import.meta.url), { type: "module" })`; Vite compiles it as its own module sub-graph.
 
-When adding code, decide which side it belongs to: anything touching `src/assets/unreal/**` or `src/assets/decoders/**` is worker-side and must not be reachable from the client graph.
+When adding code, decide which side it belongs to: anything touching `src/assets/unreal/**`, `src/assets/decoders/**`, or `src/assets/dds/**` (DXT/DDS decode) is worker-side and must not be reachable from the client graph.
 
 ## Runtime architecture
 
@@ -87,6 +87,10 @@ When adding code, decide which side it belongs to: anything touching `src/assets
 ### Actors (early / partially wired)
 
 `src/base-actor.ts` (`BaseActor` — rapier collider/rigidbody, animation state machine, ground raycasts) and `src/player.ts` (`Player extends BaseActor`) are the beginnings of gameplay, plus `src/objects/` actor types (`movable-object.ts`, `rotating-object.ts`, `swaying-object.ts`, `lit-actor.ts`, `terrain-decoration.ts`, emitters). `RenderManager` instantiates one `player`, adds it to the scene, and wires click-to-`goTo`, but `player.update` and its collider creation are commented out — treat this path as scaffolding, not a live feature. README's roadmap: bring Pawns / player controllers back from an old branch.
+
+### Utilities
+
+`src/utils/` — small standalone helpers with no project dependencies (`color-byte.ts`, `hash-cyrb.ts`, `hsv-to-rgb.ts`, `string-set.ts`, `typed-arrray-constructor.ts`); safe to use from either graph.
 
 ### Materials
 
