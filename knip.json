@@ -8,7 +8,6 @@
         "vite.config.ts",
         "vitest.config.ts",
         "eslint.config.mjs",
-        "tools/patch-l2ini.ts",
         "src/**/*.{test,spec}.ts"
     ],
     "project": ["src/**/*.ts"],

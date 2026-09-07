@@ -38,7 +38,6 @@ config (`configs/` is the removed Webpack dir, still present but ignored). Notab
 | `lint` / `lint:fix` | `eslint .` | ESLint v10 flat config. **Advisory** — not wired into build or test. | no |
 | `typecheck` | `tsx tools/typecheck.ts` | `tsc --noEmit`, exit code only from `src/` errors. **Advisory.** | no |
 | `knip` | `knip` | Report unused files / exports / deps. **Advisory.** | no |
-| `patch-l2ini` | `tsx tools/patch-l2ini.ts` | Rewrite `ServerAddr=` in an encrypted C4 `l2.ini`. | — |
 
 ## `tsconfig.json` quirks
 
@@ -101,10 +100,6 @@ VSCode is configured for non-relative imports
 
 ## `tools/`
 
-Two standalone `tsx` scripts, no build integration.
+One standalone `tsx` script, no build integration.
 
 - [tools/typecheck.ts](../tools/typecheck.ts) — the advisory `tsc` wrapper described above.
-- [tools/patch-l2ini.ts](../tools/patch-l2ini.ts) — decrypts an original C4 client `l2.ini`
-  (Lineage2Ver413 / RSA blocks + zlib), rewrites `ServerAddr=` in `[URL]`, writes it back as
-  plaintext (default; C4 clients read unencrypted `l2.ini`) or re-encrypted (`--encrypt`).
-  `--check` just prints the `[URL]` section. Zero dependencies.

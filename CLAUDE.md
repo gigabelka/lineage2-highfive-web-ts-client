@@ -125,7 +125,6 @@ Run automated sweeps with `LIVE_RELOAD=0 npm run dev`.
 
 ## Tooling
 
-- `tools/patch-l2ini.ts` (`npm run patch-l2ini`, runs via `tsx`) — decrypts the original C4 client `l2.ini` (Lineage2Ver413 / RSA-blocks + zlib), rewrites `ServerAddr=` in `[URL]`, writes it back as plaintext (default; C4 clients read unencrypted `l2.ini`) or re-encrypted (`--encrypt`). No dependencies. `--check` just prints the `[URL]` section.
 - `.vscode/launch.json` — a Chrome launch config ("Launch Chrome against localhost") pointed at the dev server on `:8888`.
 
 ## Conventions
