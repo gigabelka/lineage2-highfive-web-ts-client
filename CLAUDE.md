@@ -1,0 +1,129 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. All answers must be in Russian.
+
+## What this is
+
+A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions of Destiny_ game client. It reads the original encrypted UE2 asset binaries (`.unr/.utx/.usx/.uax/.ukx/.u/.ogg`) and renders the world with three.js + WebGL. Currently a streaming asset viewer, not yet gameplay. The code is deliberately messy in places because memory-layout reverse-engineering forces frequent churn — do not "clean up" adjacent code as a side effect of a change.
+
+## Commands
+
+- `npm run dev` (alias: `vite`) — Vite dev server on `127.0.0.1:8888`. Serves the app, the `html/` publicDir at `/`, and (via a custom plugin) the `c:/Games/HighFive/` tree with HTTP byte-range support under `/assets`. HMR on by default.
+- `npm run build-dev` — `vite build --mode development` into `bin/` (`emptyOutDir`, sourcemaps, `target: chrome80`).
+- `npm run preview` — serve a prior `bin/` build.
+- `LIVE_RELOAD=0 npm run dev` — disables HMR. Use it for automated `?sectorTest` sweeps so a mid-sweep rebuild doesn't reload the sweep page and corrupt the report.
+- `npm test` — Vitest (`vitest run`), config in `vitest.config.ts` (standalone — it does **not** load `vite.config.ts` or its dev-server plugins). Picks up `src/**/*.{test,spec}.ts`. `npm run test:watch` / `npm run test:ui` for the interactive runner. Unit-level coverage is thin — most suites are new; add tests alongside the code you change.
+- No lint, no typecheck script. `tsconfig.json` is `emitDeclarationOnly` — types are never emitted to JS; esbuild/Vite strips them. Type errors do **not** fail the build or the tests.
+- `?sectorTest` (see below) is still the closest thing to a full integration test.
+- Path aliases live in **three** places now — keep them in sync: `vite.config.ts` (`resolve.alias`), `tsconfig.json` (`compilerOptions.paths`), and `vitest.config.ts` (`resolve.alias`).
+
+### Requirements to actually run
+
+`c:/Games/HighFive/` must exist (the real client assets install). `vite.config.ts`'s `assetListPlugin` walks it on config-resolve (dev) and `buildStart` (build) and writes `html/asset-list.json` (git-ignored, auto-generated — never edit by hand; served at `/asset-list.json`). Without assets the build still runs but the app has nothing to load.
+
+`@l2js/core` is a private dependency pulled over SSH (`git+ssh://git@github.com:realratchet/l2js-core.git#stable`); `npm install` needs GitHub SSH access.
+
+`html/` is Vite's `publicDir` served at `/` — it holds committed static assets (`skybox.png`) plus the generated `asset-list.json`. `bin/` is the build output directory (`build-dev` / `preview`), git-ignored.
+
+## Build system: Vite (`vite.config.ts`)
+
+The project was migrated off Webpack; there is no more `configs/create-config.js`. `vite.config.ts` is the single source of truth and carries four custom plugins:
+
+- **`l2CoreCjsShimPlugin`** — `@l2js/core` is consumed as raw TS source (`optimizeDeps.exclude`), so its one hand-authored CommonJS file (`src/supported-extensions.js`) never goes through esbuild's CJS→ESM interop. The plugin rewrites that one file to ESM on the fly.
+- **`assetListPlugin`** — regenerates `html/asset-list.json` (see above).
+- **`rawShadersPlugin`** — replaces `raw-loader`: `.vs`/`.fs`/`.glsl` imports resolve to the file text as a default-exported string. Imports in `src/materials/**` and `register-chunks.ts` carry **no `?raw` suffix**, so a plugin is required instead of Vite's built-in `?raw`.
+- **`devServerPlugin`** — byte-range-aware static serving of `c:/Games/HighFive/` under `/assets`, plus the `POST /sector-test/report` sink that appends to `sector-test-report.jsonl`.
+
+Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`; `server.fs.allow` is widened to reach `node_modules/@l2js`.
+
+## Client / decode-worker separation (critical)
+
+Still two logically separate graphs, now expressed through Vite:
+
+1. **Client** (`src/index.ts`, `target: web`) — the renderer. three.js, materials, camera, DOM. **Must stay free of UE2 asset-parsing code.**
+2. **Decode worker** (`src/assets/decode-worker/decode.worker.ts`) — owns the _entire_ UE2 asset pipeline (package deserialization, decode-info generation, batching, DXT→RGBA). Spawned from `decode-worker-client.ts` as `new Worker(new URL("./decode.worker.ts", import.meta.url), { type: "module" })`; Vite compiles it as its own module sub-graph.
+
+When adding code, decide which side it belongs to: anything touching `src/assets/unreal/**` or `src/assets/decoders/**` is worker-side and must not be reachable from the client graph.
+
+## Runtime architecture
+
+### Entry / mode select
+
+`src/index.ts` runs `runSectorTest()` if the URL has `?sectorTest`, otherwise `startCore()` (`src/core.ts`). `startCore()` itself branches to `runSectorPrecache()` (`src/sector-precache.ts`) when the URL has `?precacheSectors`. `core.ts` holds a large `loadSettings` object (`GD.LoadSettings_T`) with big commented-out blocks of specific actor IDs used for isolating rendering bugs — expect to edit `_loadStaticModelList` etc. when debugging a single asset.
+
+### Decode worker pool
+
+- `DecodeWorkerClient` (`src/assets/decode-worker/decode-worker-client.ts`) — main-thread handle to a pool of N workers (`loadSettings.decodeWorkerPoolSize`, default 3). Each sector routes to whichever single worker decoded it, because package refcounts are **per-worker**, not shared. `freeSector` must go to that same worker.
+- `poolSize: 0` runs one `DecodeEngine` in-process (dynamic import) so a decode can be stepped through in normal devtools — a dev knob.
+- `DecodeEngine` (`decode-engine.ts`) owns an `AssetLoader` and runs the full decode; used identically by the worker and the in-process path.
+- Message protocol in `decode-protocol.ts`; the worker processes messages strictly in order (an init must finish before any decode).
+- Decoded packages are shared with the main thread at the **OPFS file level**, not in memory (`decode-cache.ts`). `loadSettings.cache.version` — bump it whenever decode logic changes; it invalidates all cached sectors.
+
+### Package loading & asset dependencies (worker-side)
+
+- `AssetLoader` (`src/assets/asset-loader.ts`) extends `AAssetLoader` from `@l2js/core`. `Instantiate(assetList)` registers one `UPackage` per entry in `html/asset-list.json`; `createPackage` points each at `/assets/<downloadPath>`.
+- `UPackage` / `UEncodedFile` are **constructor shells** (`src/constr-un-package.ts`, `src/constr-un-encoded-file.ts`) — every real method throws `"Mixin not loaded."` until the worker mixes in the implementation from `@unreal/*`. The client graph can hold the shell type without pulling UE2 code.
+- Refcounting lives here, keyed by package `path`: `using(pkg, { neverUnload })` loads a package, walks the transitive import closure (`getDependencies`), and increments a count per dependency (`Infinity` for `neverUnload`). `free(pkg)` decrements the same closure and calls `pkg.free()` on anything that hits 0. This is the per-worker refcount the pool comment above refers to.
+- `DeferredPackageLoader` (`src/assets/deferred-package-loader.ts`) is a lazy placeholder — just `{ loader, path, isDeferred }` — swapped for a real load on first use.
+
+### Sector streaming
+
+`AssetManager` (`src/assets/asset-manager.ts`) streams the world in/out around the camera every frame:
+
+- `renderDistance` loads, larger `unloadDistance` unloads (hysteresis so boundary crossings don't thrash).
+- Retired sectors are hidden but kept reusable for a grace period before disposal.
+- Camera-velocity prefetch projects a lookahead position and prioritizes sectors nearest it.
+- Static-mesh building is time-sliced across frames (`STATIC_MESH_BUILD_FRAME_MS`) after geometry is already on screen, so materials/lighting stream in progressively.
+- The main thread only ever sees plain decoded data and instantiates three.js objects from it — it never parses UE2.
+
+### Rendering
+
+`RenderManager` (`src/rendering/render-manager.ts`, ~2600 lines) — the render loop, camera controllers (Z-up variants of OrbitControls / PointerLockControls in `src/rendering/camera/`), postprocessing (`postprocessing/`), env/fog/sky (`l2-env.ts`, `sky-renderer.ts`, `env-*.ts`), audio (`audio-manager.ts`), and a `dat.gui` panel. Many constants are lifted directly from disassembly of the original client (referenced by address in comments) or from UE2 `.ini` defaults — preserve those citations.
+
+`src/rendering/ue2-conventions.ts` duck-types three.js into UE2's coordinate space (Z-up, UE2 asset format) — imported for side effects at the top of `render-manager.ts`. Assets are kept in UE2 space rather than being swizzled on load.
+
+### Actors (early / partially wired)
+
+`src/base-actor.ts` (`BaseActor` — rapier collider/rigidbody, animation state machine, ground raycasts) and `src/player.ts` (`Player extends BaseActor`) are the beginnings of gameplay, plus `src/objects/` actor types (`movable-object.ts`, `rotating-object.ts`, `swaying-object.ts`, `lit-actor.ts`, `terrain-decoration.ts`, emitters). `RenderManager` instantiates one `player`, adds it to the scene, and wires click-to-`goTo`, but `player.update` and its collider creation are commented out — treat this path as scaffolding, not a live feature. README's roadmap: bring Pawns / player controllers back from an old branch.
+
+### Materials
+
+`src/materials/<name>-material/` — one folder per material type (static mesh, terrain, UV, emitter, particle), each with a `shader/` subfolder of `.vs`/`.fs`/`.glsl` (loaded via `rawShadersPlugin`). `shader-chunks/register-chunks.ts` registers custom three.js `ShaderChunk`s (side-effect import). `global-uniforms.ts` holds shared uniforms (time, gamma, etc.).
+
+## Path aliases
+
+Defined in **three** places: `vite.config.ts` (`resolve.alias`), `tsconfig.json` (`paths`), and `vitest.config.ts` (`resolve.alias`). Keep them in sync.
+
+| alias        | target                                            |
+| ------------ | ------------------------------------------------- |
+| `@client/*`  | `src/*`                                           |
+| `@unreal/*`  | `src/assets/unreal/*`                             |
+| `@native`    | `src/assets/unreal/scripts/un-native-registry.ts` |
+| `@l2js/core` | `node_modules/@l2js/core/src` (source, not built) |
+
+VSCode is configured for non-relative imports (`typescript.preferences.importModuleSpecifier: non-relative`) — prefer alias imports over `../../..`.
+
+### Global namespaces
+
+`global.d.ts` aliases `L2JS.*` namespaces used unqualified everywhere: `C` = `L2JS.Core`, `G` = `L2JS.Client`, `GR` = `Rendering`, `GA` = `Assets`, `GD` = `Decoding`. Types like `GD.LoadSettings_T`, `GD.DecodeLibrary`, `GA.IUserConfig` come from here plus the various `*.d.ts` files (`src/**/*.d.ts`, `index.d.ts`, `l2js-core.d.ts`).
+
+## `?sectorTest` — the sweep harness
+
+`src/sector-test.ts`: decodes every level sector through the worker, instantiates it, renders + simulates a few frames (shader compile, emitter warmup, lighting, animated materials), and POSTs one JSONL row per sector to `/sector-test/report`, appended to `sector-test-report.jsonl` (that endpoint is the `devServerPlugin` in `vite.config.ts`). Use it to check for regressions across the whole map.
+
+Query params: `start=N` (resume), `only=a,b` (subset), `emitters=0`, `cache=1`, `free=0`, `render=0`, `forceRender=1`, `textures=auto|rgba|compressed`.
+
+Run automated sweeps with `LIVE_RELOAD=0 npm run dev`.
+
+`sector-test-report.jsonl` is git-ignored and **appended to** — the endpoint never truncates it. Delete it before a clean sweep or you'll be reading stale rows mixed with new ones.
+
+## Tooling
+
+- `tools/patch-l2ini.js` — decrypts the original C4 client `l2.ini` (Lineage2Ver413 / RSA-blocks + zlib), rewrites `ServerAddr=` in `[URL]`, writes it back as plaintext (default; C4 clients read unencrypted `l2.ini`) or re-encrypted (`--encrypt`). No dependencies. `--check` just prints the `[URL]` section.
+- `.vscode/launch.json` — a Chrome launch config ("Launch Chrome against localhost") pointed at the dev server on `:8888`.
+
+## Conventions
+
+- Type suffix `_T` for type aliases (`LoadSettings_T`, `SectorObject`), `Un`/`U` prefix for UE2 class ports (`UStaticMesh`, `un-static-mesh.ts`).
+- Comments frequently cite original-client disassembly addresses (`0x8a2ae0`) or UE source — these are load-bearing documentation, keep them.
+- Non-vanilla-purist: skipping non-critical data hiding in the binaries is acceptable and expected.

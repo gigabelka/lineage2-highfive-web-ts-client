@@ -1,0 +1,25 @@
+{
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "search.useIgnoreFiles": false,
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/bower_components": true,
+        "**/*.code-search": true,
+        "assets*": true
+    },
+    "typescript.preferences.importModuleSpecifier": "non-relative",
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        ".vscode-chrome": true,
+        "bin/": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "assets*/**": true,
+        "assets*/**/dec/*": false
+    }
+}

@@ -1,0 +1,45 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "outDir": "../bin",
+        "moduleResolution": "bundler",
+        "target": "ESNext",
+        "module": "ESNext",
+        // match the old babel @babel/plugin-proposal-class-properties { loose: true } semantics
+        "useDefineForClassFields": false,
+        // "allowJs": true,
+        "paths": {
+            "@native": [
+                "./src/assets/unreal/scripts/un-native-registry.ts"
+            ],
+            "@client/*": [
+                "./src/*"
+            ],
+            "@unreal/*": [
+                "./src/assets/unreal/*"
+            ],
+            "@l2js/core": [
+                "./node_modules/@l2js/core/src/index.ts"
+            ],
+            "@l2js/core/*": [
+                "./node_modules/@l2js/core/src/*"
+            ],
+            "@dimforge/rapier3d": [
+                "./node_modules/@dimforge/rapier3d-compat"
+            ],
+        },
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "isolatedModules": true
+    },
+    "exclude": [
+        "node_modules",
+        "bin"
+    ],
+}
