@@ -106,12 +106,13 @@ abstract class UTexture extends UMaterial {
         if (verArchive >= 123 && verLicense >= 16) {
             someFlag = pkg.read("uint32");
 
-            if (someFlag !== 0)
-                debugger;
+            if (someFlag !== 0) {
+                // TODO: обработать ненулевой someFlag
+            }
         }
 
         if (verArchive < 84) {
-            debugger;
+            
             throw new Error("Don't know what to do");
         }
 

@@ -74,7 +74,7 @@ abstract class ULevel extends ULevelBase {
         this.baseModelId = pkg.read("compat32");
 
         if (verArchive < 98) {
-            debugger;
+            
         }
 
         this.approxTime = pkg.read("float");
@@ -88,10 +88,11 @@ abstract class ULevel extends ULevelBase {
         if (verArchive > 62) {
             const travelInfoPairsCount = pkg.read("compat32");
 
-            if (travelInfoPairsCount !== 0)
-                debugger;
+            if (travelInfoPairsCount !== 0) {
+                // TODO: десериализовать travelInfoPairsCount пар travel-info
+            }
         } else if (verArchive >= 61) {
-            debugger;
+
         }
 
         this.levelInfo = this.actors[0] as GA.ULevelInfo;
@@ -132,7 +133,7 @@ abstract class ULevel extends ULevelBase {
     //     for (const emitter of (groupedObjectList.Emitter as UEmitter[]))
     //         emitter.loadSelf().getDecodeInfo(library);
 
-    //     // debugger;
+    //     // 
 
     //     // return {
     //     //     type: "Level",
