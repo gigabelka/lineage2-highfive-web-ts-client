@@ -19,3 +19,4 @@ traces/*
 /*-report.jsonl
 coverage/
 .eslintcache
+.playwright-mcp/
