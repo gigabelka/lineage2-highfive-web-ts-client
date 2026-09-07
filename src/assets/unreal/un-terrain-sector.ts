@@ -116,7 +116,7 @@ abstract class UTerrainSector extends UObject {
 
     const v = FVector.make();
 
-    let iii = 0;
+    const iii = 0;
 
     normals.set(this.triangles.normals);
 
@@ -808,12 +808,12 @@ abstract class UTerrainSector extends UObject {
         }
       }
     } else {
-      let ratio = alphaMap.width / info.heightmapX;
+      const ratio = alphaMap.width / info.heightmapX;
 
-      let minX = Math.floor(ratio * (x + this.offsetX));
-      let maxX = Math.ceil(ratio * (x + this.offsetX + 1));
-      let minY = Math.floor(ratio * (y + this.offsetY));
-      let range = maxX - minX;
+      const minX = Math.floor(ratio * (x + this.offsetX));
+      const maxX = Math.ceil(ratio * (x + this.offsetX + 1));
+      const minY = Math.floor(ratio * (y + this.offsetY));
+      const range = maxX - minX;
 
       if (isTurned) {
         if (triIndex) {

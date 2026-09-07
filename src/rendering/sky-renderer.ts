@@ -359,7 +359,7 @@ export default class SkyRenderer {
             latitude = (t - 6.0) * (10 * DEG2RAD) - HALF_PI;
         } else {
             if (timeOfDay < 7.0 || timeOfDay >= 23.0) {
-                let moonTime = timeOfDay >= 23.0 ? timeOfDay - 24.0 : timeOfDay;
+                const moonTime = timeOfDay >= 23.0 ? timeOfDay - 24.0 : timeOfDay;
                 latitude = moonTime * (PI / 6) - HALF_PI;
             } else latitude = NEG_PI;
         }

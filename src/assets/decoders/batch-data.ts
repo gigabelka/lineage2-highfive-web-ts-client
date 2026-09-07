@@ -478,8 +478,8 @@ function rewriteLeafActors(
 function mortonKey(position: number[] | undefined): number {
     if (!position) return 0;
 
-    let x = Math.max(0, Math.min(0xffff, ((position[0] + 165000) / 6) | 0));
-    let y = Math.max(0, Math.min(0xffff, ((position[1] + 165000) / 6) | 0));
+    const x = Math.max(0, Math.min(0xffff, ((position[0] + 165000) / 6) | 0));
+    const y = Math.max(0, Math.min(0xffff, ((position[1] + 165000) / 6) | 0));
     let key = 0;
 
     for (let i = 0; i < 16; i++)

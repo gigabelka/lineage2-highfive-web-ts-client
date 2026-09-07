@@ -1802,7 +1802,7 @@ class RenderManager {
       }
     }
 
-    let targetFogColor = env.getHazeColor(tmpColorByte_2); // Default to Haze
+    const targetFogColor = env.getHazeColor(tmpColorByte_2); // Default to Haze
 
     // targetFogStart = 1;
     // targetFogEnd = 10
@@ -1854,7 +1854,7 @@ class RenderManager {
         accHazeG = 0,
         accHazeB = 0,
         totalHazeWeight = 0;
-      let accCloudR = [0, 0, 0],
+      const accCloudR = [0, 0, 0],
         accCloudG = [0, 0, 0],
         accCloudB = [0, 0, 0],
         totalCloudWeight = [0, 0, 0];
@@ -1868,7 +1868,7 @@ class RenderManager {
         totalFogWeight = 0;
 
       // Haze Array accumulators (for vertical gradient)
-      let accHArrR: number[] = [],
+      const accHArrR: number[] = [],
         accHArrG: number[] = [],
         accHArrB: number[] = [];
 

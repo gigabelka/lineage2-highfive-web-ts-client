@@ -678,7 +678,7 @@ abstract class BaseEmitter extends Object3D {
     particle.colorMultiplier.set(1, 1, 1);
     if (this.meshSpawning !== "none" && this.meshSpawningStaticMesh) {
       __break__();
-      let maxIndex =
+      const maxIndex =
         this.meshSpawningStaticMesh.geometry.getAttribute("position").count;
       if (maxIndex > 0) {
         let vertexIndex =
@@ -688,13 +688,13 @@ abstract class BaseEmitter extends Object3D {
         vertexIndex %= maxIndex;
         vertexIndex = clamp(vertexIndex, 0, maxIndex);
 
-        let attrPositions =
+        const attrPositions =
           this.meshSpawningStaticMesh.geometry.getAttribute("position");
-        let attrNormals =
+        const attrNormals =
           this.meshSpawningStaticMesh.geometry.getAttribute("normal");
 
         if (this.isSpawningTowardsNormal) {
-          let normal = new Vector3().fromBufferAttribute(
+          const normal = new Vector3().fromBufferAttribute(
             attrNormals,
             vertexIndex,
           );
@@ -712,12 +712,12 @@ abstract class BaseEmitter extends Object3D {
           }
         }
 
-        let locationScale = randVector(
+        const locationScale = randVector(
           new Vector3(),
           this.meshScaleRange.min,
           this.meshScaleRange.max,
         );
-        let location = new Vector3().fromBufferAttribute(
+        const location = new Vector3().fromBufferAttribute(
           attrPositions,
           vertexIndex,
         );
@@ -728,12 +728,12 @@ abstract class BaseEmitter extends Object3D {
         );
 
         if (this.isVelocityFromMesh) {
-          let velocityScale = randVector(
+          const velocityScale = randVector(
             new Vector3(),
             this.velocityScaleRange.min,
             this.velocityScaleRange.max,
           );
-          let meshVelocity = new Vector3().fromBufferAttribute(
+          const meshVelocity = new Vector3().fromBufferAttribute(
             attrNormals,
             vertexIndex,
           );
@@ -745,10 +745,10 @@ abstract class BaseEmitter extends Object3D {
         }
 
         if (this.isUsingColorFromMesh) {
-          let attrColors =
+          const attrColors =
             this.meshSpawningStaticMesh.geometry.getAttribute("color");
 
-          let meshColor = new Vector3().fromBufferAttribute(
+          const meshColor = new Vector3().fromBufferAttribute(
             attrColors,
             vertexIndex,
           );
@@ -983,7 +983,7 @@ abstract class BaseEmitter extends Object3D {
       this.scaleSizeYByVelocity ||
       this.scaleSizeZByVelocity
     ) {
-      let VelocitySize = Math.min(
+      const VelocitySize = Math.min(
         particle.velocity.length(),
         this.scaleSizeByVelocityMax,
       );
@@ -1248,7 +1248,7 @@ abstract class BaseEmitter extends Object3D {
 
     // Deferred spawning.
     if (!this.killPending) {
-      let Amount = clamp(this.deferredParticles, 0, this.maxActiveParticles);
+      const Amount = clamp(this.deferredParticles, 0, this.maxActiveParticles);
 
       for (let i = 0; i < Amount; i++) {
         if (this.particleIndex !== -1) {
@@ -1269,7 +1269,7 @@ abstract class BaseEmitter extends Object3D {
       index < Math.min(this.maxActiveParticles, this.activeParticles);
       index++
     ) {
-      let particle = this.particles[index];
+      const particle = this.particles[index];
 
       if (!(particle.flags & EParticleFlags_T.PTF_Active)) continue;
 
@@ -1301,7 +1301,7 @@ abstract class BaseEmitter extends Object3D {
     }
 
     let maxVelocityScale = 1;
-    let oneOverDeltaTime = 1 / clamp(deltaTime, 0.001, 0.15);
+    const oneOverDeltaTime = 1 / clamp(deltaTime, 0.001, 0.15);
     const coordinateSystem = this.coordinateSystem;
     const currentAcceleration = tmpCurrentAcceleration.copy(this.acceleration);
     const ownerOffset = tmpOwnerOffset
@@ -1326,7 +1326,7 @@ abstract class BaseEmitter extends Object3D {
       index < Math.min(this.maxActiveParticles, this.activeParticles);
       index++
     ) {
-      let particle = this.particles[index];
+      const particle = this.particles[index];
 
       if (!(particle.flags & EParticleFlags_T.PTF_Active)) continue;
 
@@ -1399,7 +1399,7 @@ abstract class BaseEmitter extends Object3D {
       }
 
       // Handle collision.
-      let collided = false;
+      const collided = false;
 
       if (tickParticle && coordinateSystem !== "relative") {
         if (this.isUsingCollision) {
@@ -1415,7 +1415,7 @@ abstract class BaseEmitter extends Object3D {
       // Scaling over time.
       let relativeTime;
       let timeFactor = 1.0;
-      let time = particle.time;
+      const time = particle.time;
       const color = particle.color.set(1, 1, 1, 1);
 
       if (particle.maxLifetime)
@@ -1427,15 +1427,15 @@ abstract class BaseEmitter extends Object3D {
         if (this.isScaleSizeRegular)
           timeFactor = timeFactor / (1 + particle.time);
         else {
-          let sizeRelativeTime =
+          const sizeRelativeTime =
             ((this.useAbsoluteTimeForSizeScale ? time : relativeTime) *
               (this.sizeScaleRepeats + 1)) %
             1;
           for (let n = 0; n < this.sizeScale.length; n++) {
             if (this.sizeScale[n].relTime >= sizeRelativeTime) {
               let s1, r1;
-              let s2 = this.sizeScale[n].relSize;
-              let r2 = this.sizeScale[n].relTime;
+              const s2 = this.sizeScale[n].relSize;
+              const r2 = this.sizeScale[n].relTime;
               if (n) {
                 s1 = this.sizeScale[n - 1].relSize;
                 r1 = this.sizeScale[n - 1].relTime;
@@ -1461,7 +1461,7 @@ abstract class BaseEmitter extends Object3D {
       // Velocity scale.
       if (this.isUsingVelocityScale) {
         if (particle.maxLifetime) {
-          let velocityRelativeTime =
+          const velocityRelativeTime =
             (relativeTime * (this.velocityScaleRepeats + 1)) % 1;
           for (let n = 0; n < this.velocityScale.length; n++) {
             if (this.velocityScale[n].relativeTime >= velocityRelativeTime) {
@@ -1494,7 +1494,7 @@ abstract class BaseEmitter extends Object3D {
         this.scaleSizeYByVelocity ||
         this.scaleSizeZByVelocity
       ) {
-        let velocitySize = this.determineVelocityByLocationDifference
+        const velocitySize = this.determineVelocityByLocationDifference
           ? tmpPhysicsVector
               .copy(particle.position)
               .sub(particle.oldLocation)
@@ -1519,7 +1519,7 @@ abstract class BaseEmitter extends Object3D {
       if (this.isUsingRevolutionScale) {
         __break__();
         if (particle.maxLifetime) {
-          let revolutionRelativeTime =
+          const revolutionRelativeTime =
             (relativeTime * (this.revolutionScaleRepeats + 1)) % 1;
           for (let n = 0; n < this.revolutionScale.length; n++) {
             if (
@@ -1550,14 +1550,14 @@ abstract class BaseEmitter extends Object3D {
 
       // Color scale.
       if (this.isUsingColorScale && particle.maxLifetime) {
-        let colorRelativeTime =
+        const colorRelativeTime =
           (relativeTime * (this.colorScaleRepeats + 1)) % 1;
         for (let n = 0; n < this.colorScale.length; n++) {
           if (this.colorScale[n].relativeTime >= colorRelativeTime) {
             let r1;
-            let r2 = this.colorScale[n].relativeTime;
+            const r2 = this.colorScale[n].relativeTime;
             let c1;
-            let c2 = this.colorScale[n].color;
+            const c2 = this.colorScale[n].color;
             if (n) {
               c1 = this.colorScale[n - 1].color;
               r1 = this.colorScale[n - 1].relativeTime;

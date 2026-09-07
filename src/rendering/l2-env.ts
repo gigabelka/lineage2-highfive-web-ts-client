@@ -334,7 +334,7 @@ class L2Environment {
         const currEnvIndex = Math.floor(timeOfDay / timePerElement) % totalElements;
         const nextEnvIndex = (currEnvIndex + 1) % totalElements;
 
-        let currEnvTime = currEnvIndex * timePerElement;
+        const currEnvTime = currEnvIndex * timePerElement;
         let nextEnvTime = nextEnvIndex * timePerElement;
 
         while (nextEnvTime < currEnvTime) nextEnvTime += 24.0;
@@ -459,7 +459,7 @@ function interpolateFogInfoColor(
         if (colors[i].time <= timeOfDay) prevIdx = i;
     }
 
-    let nextIdx = (prevIdx + 1) % colors.length;
+    const nextIdx = (prevIdx + 1) % colors.length;
     const prev = colors[prevIdx];
     const next = colors[nextIdx];
 
@@ -502,7 +502,7 @@ function interpolateFogInfoSkyColor(
         if (colors[i].time <= timeOfDay) prevIdx = i;
     }
 
-    let nextIdx = (prevIdx + 1) % colors.length;
+    const nextIdx = (prevIdx + 1) % colors.length;
     const prev = colors[prevIdx];
     const next = colors[nextIdx];
 
@@ -546,7 +546,7 @@ function interpolateFogInfoHazeColor(
         if (colors[i].time <= timeOfDay) prevIdx = i;
     }
 
-    let nextIdx = (prevIdx + 1) % colors.length;
+    const nextIdx = (prevIdx + 1) % colors.length;
     const prev = colors[prevIdx];
     const next = colors[nextIdx];
 
@@ -587,7 +587,7 @@ export function interpolateFogInfoHazeColors(
         if (colors[i].time <= timeOfDay) prevIdx = i;
     }
 
-    let nextIdx = (prevIdx + 1) % colors.length;
+    const nextIdx = (prevIdx + 1) % colors.length;
     const prev = colors[prevIdx];
     const next = colors[nextIdx];
 
@@ -631,7 +631,7 @@ function interpolateFogInfoCloudColor(
         if (colors[i].time <= timeOfDay) prevIdx = i;
     }
 
-    let nextIdx = (prevIdx + 1) % colors.length;
+    const nextIdx = (prevIdx + 1) % colors.length;
     const prev = colors[prevIdx];
     const next = colors[nextIdx];
 

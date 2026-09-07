@@ -312,7 +312,7 @@ function decodeTexPannerModifer(
     overrideMaterial !== undefined ? overrideMaterial : info.transform.map;
   const isUsingMap = materialIndex !== null;
 
-  if (isUsingMap && !library.materials[materialIndex!!]) {
+  if (isUsingMap && !library.materials[materialIndex!]) {
     console.warn(
       `[MaterialDecoder] PanTexture map not found in library: ${materialIndex}`,
     );

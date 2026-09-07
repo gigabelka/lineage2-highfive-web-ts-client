@@ -1117,7 +1117,7 @@ class SectorObject extends Object3D {
 
                         if (isOutdoor) outdoorCount++; else indoorCount++;
 
-                        let material = child.material;
+                        const material = child.material;
                         const hasLightmap = (m: any) => m?.defines?.USE_LIGHTMAP !== undefined;
 
                         const sectionZoneAmbient = isOutdoor ? null : this.getSectionZoneAmbient(sectionIndex);

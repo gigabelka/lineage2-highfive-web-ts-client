@@ -46,7 +46,7 @@ class UConfigSystem extends BaseConfigFile {
         let readOffset = sectionOffset + sectionHeader.length;
 
         while (true) {
-            let nextOffset = this._skipToNextToken(fileContents, readOffset);
+            const nextOffset = this._skipToNextToken(fileContents, readOffset);
             if (nextOffset >= fileContents.length || fileContents[nextOffset] === "[") break;
 
             readOffset = nextOffset;

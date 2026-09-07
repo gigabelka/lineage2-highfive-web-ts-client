@@ -427,7 +427,7 @@ class Terrain extends Mesh implements ICollidable {
             idxB = 0;
         }
 
-        let timeA = times[idxA];
+        const timeA = times[idxA];
         let timeB = times[idxB];
 
         // Handle wrapping

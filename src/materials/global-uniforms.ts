@@ -14,7 +14,7 @@ const GLOBAL_UNIFORMS = Object.freeze(UniformsUtils.merge([
 ]) as UniformMap_T);
 
 function appendGlobalUniforms(uniforms: UniformMap_T): UniformMap_T {
-    for (let [k, v] of Object.entries(GLOBAL_UNIFORMS))
+    for (const [k, v] of Object.entries(GLOBAL_UNIFORMS))
         uniforms[k] = v;
 
     return uniforms;

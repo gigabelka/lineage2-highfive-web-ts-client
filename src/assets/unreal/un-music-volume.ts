@@ -34,7 +34,7 @@ abstract class UMusicVolume extends UVolume {
             let ny = matrixTA.planeX.y * p.x + matrixTA.planeY.y * p.y + matrixTA.planeZ.y * p.z;
             let nz = matrixTA.planeX.z * p.x + matrixTA.planeY.z * p.y + matrixTA.planeZ.z * p.z;
 
-            let len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
             if (len > 1e-8) { nx /= len; ny /= len; nz /= len; }
 
             // UE2: if (M.Determinant() < 0) newNorm *= -1

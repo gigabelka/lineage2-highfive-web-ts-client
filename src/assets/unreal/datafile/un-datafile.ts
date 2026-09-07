@@ -36,7 +36,7 @@ class UDataFile extends UEncodedFile {
         for (let i = 0; i < rowCount; i++) {
             const values = {} as Record<string, any>;
 
-            for (let { type, name } of this.schema) {
+            for (const { type, name } of this.schema) {
                 values[name] = loadSingleValue(readable, type);
             }
 

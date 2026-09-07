@@ -222,8 +222,8 @@ abstract class UL2NEnvLight extends UL2NTimeLight {
 
 function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
     r /= 255, g /= 255, b /= 255;
-    let v = Math.max(r, g, b);
-    let diff = v - Math.min(r, g, b);
+    const v = Math.max(r, g, b);
+    const diff = v - Math.min(r, g, b);
     let h = 0, s = 0;
 
     if (diff === 0) {
@@ -253,8 +253,8 @@ import {
 export { UL2NEnvLight, UL2NTimeLight, EEnvCycle, FNTimeHSV, FNTimeColor, FNTimeScale };
 
 function getEnvType(fileContents: string): EEnvCycle {
-    let readOffset = findSection(fileContents, "EnvType");
-    let [nameMax, nameVal, _] = consumeNextValue(fileContents, readOffset);
+    const readOffset = findSection(fileContents, "EnvType");
+    const [nameMax, nameVal, _] = consumeNextValue(fileContents, readOffset);
 
     if (nameMax.toLowerCase() !== "envtype") throw new Error(`Invalid variable found '${nameMax}' expected 'NUM'`);
 
@@ -263,7 +263,7 @@ function getEnvType(fileContents: string): EEnvCycle {
 
 function loadHSV(fileContents: string, sectionName: string, pkgNative: C.ANativePackage, pkgEngine: C.AEnginePackage): FArray<FNTimeHSV> {
     let readOffset = findSection(fileContents, sectionName);
-    let [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
+    const [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
 
     if (nameMax.toLowerCase() !== "num") throw new Error(`Invalid variable found '${nameMax}' expected 'NUM'`);
 
@@ -294,7 +294,7 @@ function loadHSV(fileContents: string, sectionName: string, pkgNative: C.ANative
 
 function loadScale(fileContents: string, sectionName: string, pkgNative: C.ANativePackage, pkgEngine: C.AEnginePackage): FArray<FNTimeScale> {
     let readOffset = findSection(fileContents, sectionName);
-    let [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
+    const [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
 
     if (nameMax.toLowerCase() !== "num") throw new Error(`Invalid variable found '${nameMax}' expected 'NUM'`);
 
@@ -325,7 +325,7 @@ function loadScale(fileContents: string, sectionName: string, pkgNative: C.ANati
 
 function loadRGB(fileContents: string, sectionName: string, pkgNative: C.ANativePackage, pkgEngine: C.AEnginePackage): FArray<FNTimeColor> {
     let readOffset = findSection(fileContents, sectionName);
-    let [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
+    const [nameMax, nameVal, readContent] = consumeNextValue(fileContents, readOffset);
 
     if (nameMax.toLowerCase() !== "num") throw new Error(`Invalid variable found '${nameMax}' expected 'NUM'`);
 

@@ -265,7 +265,7 @@ abstract class ATerrainInfo extends AInfo {
     x: number,
     y: number,
   ): boolean {
-    let bitIndex = x + y * this.heightmapX;
+    const bitIndex = x + y * this.heightmapX;
 
     return bitmap.getElem(bitIndex >> 5) & (1 << (bitIndex & 0x1f))
       ? true
@@ -798,9 +798,9 @@ abstract class ATerrainInfo extends AInfo {
   public postLoad(pkg: C.APackage, exp: C.UExport<C.UObject>) {
     super.postLoad(pkg, exp);
 
-    let startX = 0,
+    const startX = 0,
       startY = 0;
-    let endX = this.heightmapX,
+    const endX = this.heightmapX,
       endY = this.heightmapY;
 
     //

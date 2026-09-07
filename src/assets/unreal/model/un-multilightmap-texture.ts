@@ -31,7 +31,7 @@ class FStaticLightmapTexture implements C.IConstructable {
         const firstMipmap = this.data;
         const mipCount = 1;
 
-        let imSize = firstMipmap.getByteLength();
+        const imSize = firstMipmap.getByteLength();
 
         const data = new Uint8Array(imSize);
 

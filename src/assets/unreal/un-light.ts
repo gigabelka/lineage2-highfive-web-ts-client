@@ -248,15 +248,15 @@ function ftol2(a1: number) {
   //
   // }
 
-  let a = Math.trunc(a1);
+  const a = Math.trunc(a1);
   let v1 = a;
   let result = Math.trunc(a1);
   if (result || ((v1 = Math.trunc(a1) >> 32), (v1 & 0x7fffffff) != 0)) {
     if (v1 >= 0) {
       //
-      let c = a1 - Math.trunc(a1);
-      let dwc = f2i(c);
-      let carry = __CFADD__(LODWORD(dwc), 0x7fffffff);
+      const c = a1 - Math.trunc(a1);
+      const dwc = f2i(c);
+      const carry = __CFADD__(LODWORD(dwc), 0x7fffffff);
 
       if (carry > 0) result = result - carry;
     } else {
