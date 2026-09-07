@@ -1092,13 +1092,13 @@ class SectorObject extends Object3D {
       if (zoneChanged) {
         const previousZone =
           this._lastLoggedZone !== null ? this._lastLoggedZone : "unknown";
-        console.log(`[Zone Change] Zone: ${previousZone} -> ${currentZone}`);
+        // console.log(`[Zone Change] Zone: ${previousZone} -> ${currentZone}`);
         this._lastLoggedZone = currentZone;
       }
       if (leafChanged) {
         const previousLeaf =
           this._lastLoggedLeaf !== null ? this._lastLoggedLeaf : "unknown";
-        console.log(`[Leaf Change] Leaf: ${previousLeaf} -> ${leafIndex}`);
+        // console.log(`[Leaf Change] Leaf: ${previousLeaf} -> ${leafIndex}`);
         this._lastLoggedLeaf = leafIndex;
       }
     }
@@ -1153,9 +1153,9 @@ class SectorObject extends Object3D {
           finalActiveZones.push(i);
         }
       }
-      console.log(
-        `[BSP Visibility] Zone: ${currentZone}, Active zones: [${finalActiveZones.join(", ")}], Visible nodes: ${visibleNodes.size}, Visible sections: ${visibleSections.size}/${this.bspSections!.length}, Visible meshes: ${visibleMeshCount}`,
-      );
+      // console.log(
+      //   `[BSP Visibility] Zone: ${currentZone}, Active zones: [${finalActiveZones.join(", ")}], Visible nodes: ${visibleNodes.size}, Visible sections: ${visibleSections.size}/${this.bspSections!.length}, Visible meshes: ${visibleMeshCount}`,
+      // );
     }
   }
 
@@ -1325,13 +1325,13 @@ class SectorObject extends Object3D {
       if (zoneChanged) {
         const previousZone =
           this._lastLoggedZone !== null ? this._lastLoggedZone : "unknown";
-        console.log(`[Zone Change] Zone: ${previousZone} -> ${currentZone}`);
+        // console.log(`[Zone Change] Zone: ${previousZone} -> ${currentZone}`);
         this._lastLoggedZone = currentZone;
       }
       if (leafChanged) {
         const previousLeaf =
           this._lastLoggedLeaf !== null ? this._lastLoggedLeaf : "unknown";
-        console.log(`[Leaf Change] Leaf: ${previousLeaf} -> ${leafIndex}`);
+        // console.log(`[Leaf Change] Leaf: ${previousLeaf} -> ${leafIndex}`);
         this._lastLoggedLeaf = leafIndex;
       }
     }
@@ -1448,9 +1448,9 @@ class SectorObject extends Object3D {
 
       // Log BSP ambient status on zone changes (condensed debug)
       if (zoneChanged && bspAmbientColor) {
-        console.log(
-          `[BSP Ambient] Outdoor: ${outdoorCount}, Indoor: ${indoorCount}, Color: rgb(${bspAmbientColor.r.toFixed(2)}, ${bspAmbientColor.g.toFixed(2)}, ${bspAmbientColor.b.toFixed(2)})`,
-        );
+        // console.log(
+        //   `[BSP Ambient] Outdoor: ${outdoorCount}, Indoor: ${indoorCount}, Color: rgb(${bspAmbientColor.r.toFixed(2)}, ${bspAmbientColor.g.toFixed(2)}, ${bspAmbientColor.b.toFixed(2)})`,
+        // );
       }
 
       if (zoneChanged && currentZone !== null && currentZone >= 0) {
@@ -1460,9 +1460,9 @@ class SectorObject extends Object3D {
             finalActiveZones.push(i);
           }
         }
-        console.log(
-          `[BSP Visibility] Zone: ${currentZone}, Active zones: [${finalActiveZones.join(", ")}], Visible nodes: ${visibleNodes.size}, Visible sections: ${visibleSections.size}/${this.bspSections!.length}, Visible meshes: ${visibleMeshCount}`,
-        );
+        // console.log(
+        //   `[BSP Visibility] Zone: ${currentZone}, Active zones: [${finalActiveZones.join(", ")}], Visible nodes: ${visibleNodes.size}, Visible sections: ${visibleSections.size}/${this.bspSections!.length}, Visible meshes: ${visibleMeshCount}`,
+        // );
       }
     }
 
@@ -1726,9 +1726,9 @@ class SectorObject extends Object3D {
         leafIndex >= 0 &&
         leafIndex !== this._lastLoggedStaticMeshLeaf
       ) {
-        console.log(
-          `leaf #${leafIndex} meshes ${visibleCount}/${this.staticMeshMap.size}`,
-        );
+        // console.log(
+        //   `leaf #${leafIndex} meshes ${visibleCount}/${this.staticMeshMap.size}`,
+        // );
         this._lastLoggedStaticMeshLeaf = leafIndex;
       }
     }
@@ -2055,9 +2055,9 @@ class SectorObject extends Object3D {
       leafIndex >= 0 &&
       leafIndex !== this._lastLoggedStaticMeshLeaf
     ) {
-      console.log(
-        `leaf #${leafIndex} meshes ${visibleCount}/${this.staticMeshMap.size}`,
-      );
+      // console.log(
+      //   `leaf #${leafIndex} meshes ${visibleCount}/${this.staticMeshMap.size}`,
+      // );
       this._lastLoggedStaticMeshLeaf = leafIndex;
     }
   }

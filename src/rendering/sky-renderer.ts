@@ -94,8 +94,8 @@ export default class SkyRenderer {
                 skyZoneInfos.push(obj);
             }
         });
-        console.log(`[SkyRenderer] Found ${skyZoneInfos.length} SkyZoneInfo actors in skylevel`);
-        skyZoneInfos.forEach(szi => console.log(`  > ${szi.name}: Position(${szi.position.toArray().map((v: number) => v.toFixed(2))})`));
+        // console.log(`[SkyRenderer] Found ${skyZoneInfos.length} SkyZoneInfo actors in skylevel`);
+        // skyZoneInfos.forEach(szi => console.log(`  > ${szi.name}: Position(${szi.position.toArray().map((v: number) => v.toFixed(2))})`));
 
         const celestials = skyLevel.celestials;
 
@@ -165,7 +165,7 @@ export default class SkyRenderer {
             } else {
                 skyOrigin.copy(skyZoneInfo.position);
             }
-            // console.log(`[SkyRenderer] Using USkyZoneInfo as canonical origin: ${skyOrigin.toArray().map(v => v.toFixed(1))}`);
+            // // console.log(`[SkyRenderer] Using USkyZoneInfo as canonical origin: ${skyOrigin.toArray().map(v => v.toFixed(1))}`);
         } else {
             const skyboxPattern = envInfo.setup.skybox;
             let skyboxMesh = skyboxPattern ? children.find(m => m.name.includes(skyboxPattern)) : null;
@@ -246,7 +246,7 @@ export default class SkyRenderer {
             }
         });
 
-        // console.log(`[SkyRenderer] layers: skybox=${this.skyLayers.skybox.length}, haze=${this.skyLayers.haze.length}, clouds=${this.skyLayers.clouds.length} (of ${children.length} bsp meshes; patterns: skybox='${skybox}', haze='${hazering}', clouds=[${clouds.join(", ")}])`);
+        // // console.log(`[SkyRenderer] layers: skybox=${this.skyLayers.skybox.length}, haze=${this.skyLayers.haze.length}, clouds=${this.skyLayers.clouds.length} (of ${children.length} bsp meshes; patterns: skybox='${skybox}', haze='${hazering}', clouds=[${clouds.join(", ")}])`);
     }
 
     public update(camera: PerspectiveCamera, env: L2Environment, skyColor: ColorByte, _hazeColor: ColorByte, hazeColors: ColorByte[], cloudColors: ColorByte[], _fogColor: ColorByte, fogStart: number, fogEnd: number, _sector: SectorObject | null, clearColor: ColorByte, skyVisibility: number) {

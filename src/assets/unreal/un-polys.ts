@@ -152,18 +152,18 @@ abstract class UPolys extends UObject {
   // protected doLoad(pkg: UPackage, exp: UExport): this {
   //     pkg.seek(this.readHead, "set");
   //     super.doLoad(pkg, exp);
-  //     // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
+  //     // // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
   //     // super.load(pkg, exp);
   //     const dbNum = pkg.read("int32");
   //     const dbMax = pkg.read("int32");
-  //     // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
+  //     // // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
   //     this.polyList = new Array(dbMax);
   //     //
   //     for (let i = 0; i < dbMax; i++) {
   //         // this.polyList[i] = await new FPoly().load(pkg);
-  //         // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
+  //         // // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
   //     }
-  //     // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
+  //     // // console.log(`offset: ${pkg.tell() - startOffset}, left: ${exp.size - (pkg.tell() - startOffset)}`);
   //     // console.assert((exp.size - (pkg.tell() - startOffset)) === 0);
   //     //
   //     return this;

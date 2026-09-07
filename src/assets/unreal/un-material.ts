@@ -564,9 +564,9 @@ abstract class UTexRotator extends UBaseModifier {
   //     this.matrix.getMatrix3(matrix);
   //     const texture = await (this.material as UTexture).decodeMipmap(0);
 
-  //     // console.log(matrix.elements.slice(0, 3));
-  //     // console.log(matrix.elements.slice(3, 6));
-  //     // console.log(matrix.elements.slice(6, 9));
+  //     // // console.log(matrix.elements.slice(0, 3));
+  //     // // console.log(matrix.elements.slice(3, 6));
+  //     // // console.log(matrix.elements.slice(6, 9));
 
   //     //
 

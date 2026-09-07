@@ -85,7 +85,7 @@ class UClass<Class extends UObject = UObject> extends UState<Class> {
 
     //
 
-    // console.log()
+    // // console.log()
 
     // ebp+arg_0 -> 0x19EFF0 -> 0x102D3D74 -> 274
 

@@ -114,7 +114,7 @@ abstract class ULight extends UAActor {
 
     // const lightType = this.type;
 
-    // console.log(`x: ${x}, y: ${y}, z: ${z}, w: ${w}`);
+    // // console.log(`x: ${x}, y: ${y}, z: ${z}, w: ${w}`);
 
     // let someColor_88 = 0;
     // let actor1: any;

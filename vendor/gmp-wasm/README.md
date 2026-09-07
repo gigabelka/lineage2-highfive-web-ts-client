@@ -42,12 +42,13 @@ It can also be used directly from HTML (via [jsDelivr](https://www.jsdelivr.com/
 ## Usage
 
 **gmp-wasm** also provides a high-level wrapper over the GMP functions. There are three major components:
-- `g.Integer()` - Wraps integers (*MPZ*)
-- `g.Rational()` - Wraps rational numbers (*MPQ*)
-- `g.Float()` - Wraps floating-point numbers (*MPFR*)
+
+- `g.Integer()` - Wraps integers (_MPZ_)
+- `g.Rational()` - Wraps rational numbers (_MPQ_)
+- `g.Float()` - Wraps floating-point numbers (_MPFR_)
 
 ```js
-const gmp = require('gmp-wasm');
+const gmp = require("gmp-wasm");
 
 gmp.init().then(({ calculate }) => {
   // calculate() automatically deallocates all objects created within the callback function
@@ -55,14 +56,14 @@ gmp.init().then(({ calculate }) => {
     const six = g.Float(1).add(5);
     return g.Pi().div(six).sin(); // sin(Pi/6) = 0.5
   });
-  console.log(result);
+  // console.log(result);
 });
 ```
 
 It is also possible to delay deallocation through the `getContext()` API:
 
 ```js
-const gmp = require('gmp-wasm');
+const gmp = require("gmp-wasm");
 
 gmp.init().then(({ getContext }) => {
   const ctx = getContext();
@@ -70,7 +71,7 @@ gmp.init().then(({ getContext }) => {
   for (let i = 2; i < 16; i++) {
     x = x.add(i);
   }
-  console.log(x.toString());
+  // console.log(x.toString());
   setTimeout(() => ctx.destroy(), 50);
 });
 ```
@@ -81,9 +82,9 @@ The precision and the rounding modes can be set by passing a parameter to the co
 const roundingMode = gmp.FloatRoundingMode.ROUND_DOWN;
 const options = { precisionBits: 10, roundingMode };
 
-const result = calculate(g => g.Float(1).div(3), options);
+const result = calculate((g) => g.Float(1).div(3), options);
 // or
-const result2 = calculate(g => g.Float(1, options).div(3));
+const result2 = calculate((g) => g.Float(1, options).div(3));
 // or
 const ctx = getContext(options);
 const result3 = ctx.Float(1).div(3).toString();
@@ -115,7 +116,7 @@ const sum = calculate((g) => {
 If you want more control and performance you can use the original GMP / MPFR functions even without high-level wrappers.
 
 ```js
-const gmp = require('gmp-wasm');
+const gmp = require("gmp-wasm");
 
 gmp.init().then(({ binding }) => {
   // Create first number and initialize it to 30
@@ -123,12 +124,12 @@ gmp.init().then(({ binding }) => {
   binding.mpz_init_set_si(num1Ptr, 30);
   // Create second number from string. The string needs to be copied into WASM memory
   const num2Ptr = binding.mpz_t();
-  const strPtr = binding.malloc_cstr('40');
+  const strPtr = binding.malloc_cstr("40");
   binding.mpz_init_set_str(num2Ptr, strPtr, 10);
   // Calculate num1Ptr + num2Ptr, store the result in num1Ptr
   binding.mpz_add(num1Ptr, num1Ptr, num2Ptr);
   // Get result as integer
-  console.log(binding.mpz_get_si(num1Ptr));
+  // console.log(binding.mpz_get_si(num1Ptr));
   // Deallocate memory
   binding.free(strPtr);
   binding.mpz_clears(num1Ptr, num2Ptr);
@@ -137,6 +138,7 @@ gmp.init().then(({ binding }) => {
 ```
 
 Sometimes, it's easier and faster to deallocate everything by reinitializing the WASM bindings:
+
 ```js
 // Deallocate all memory objects created by gmp-wasm
 await binding.reset();
@@ -144,7 +146,7 @@ await binding.reset();
 
 ## Performance
 
-In some cases, this library can provide better performance than the built-in *BigInt* type.
+In some cases, this library can provide better performance than the built-in _BigInt_ type.
 
 For example, calculating 8000 digits of Pi using the following [formula](http://ajennings.net/blog/a-million-digits-of-pi-in-9-lines-of-javascript.html) provides better results:
 
@@ -172,6 +174,5 @@ PI = 3
 | ----------------------------                                                        | --------  | -------- |
 | **gmp-wasm** `Float(1).atan().mul(4)`                                               | 0.6 ms    | 215x     |
 | **gmp-wasm** `Float('0.5').asin().mul(6)`                                           | 17 ms     | 7.59x    |
-
 
 \* These measurements were made with `Node.js v16.14` on an Intel Kaby Lake desktop CPU. Source code is [here](https://github.com/Daninet/gmp-wasm/blob/master/benchmark/calcpi.js).

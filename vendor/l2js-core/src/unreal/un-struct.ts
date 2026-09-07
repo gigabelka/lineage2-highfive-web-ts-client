@@ -364,28 +364,10 @@ class UStruct<Class extends UObject = UObject> extends UField {
 
                 Object.defineProperty(this, varname, {
                   get: () => {
-                    // if (property.arrayDimensions !== 1)
-                    //     return new FixedArrayContainer(property);
-
-                    return this.propertyDict.get(propName); //.getPropertyValue();
+                    return this.propertyDict.get(propName);
                   },
                   set: (v: any) => {
                     this.propertyDict.set(propName, v);
-                    // if (property.arrayDimensions !== 1)
-                    //     throw new Error(`Not implemented`);
-
-                    // const value = property.propertyValue[0];
-
-                    // if (value instanceof BufferValue || value instanceof UnProperties.BooleanValue)
-                    //     value.value = v;
-                    // else if (property instanceof UnProperties.UArrayProperty)
-                    //     property.propertyValue[0] = v;
-                    // else if (property instanceof UnProperties.UStructProperty)
-                    //     property.propertyValue[0] = v;
-                    // else {
-                    //
-                    //     throw new Error(`Not implemented`);
-                    // }
                   },
                 });
               }
@@ -402,12 +384,6 @@ class UStruct<Class extends UObject = UObject> extends UField {
             ? dynamicTag
             : Constructor.prototype.toString.call(this);
         }
-
-        // public constructor(...args: any) {
-        //     super(...args);
-
-        //     this.initialize();
-        // }
       },
     }[this.friendlyName];
 
@@ -437,11 +413,11 @@ class UStruct<Class extends UObject = UObject> extends UField {
 
     this.kls = cls as any;
 
-    console.log(
-      `%cRegistered new class: %c${friendlyName}`,
-      "color: blue",
-      "color: green",
-    );
+    // console.log(
+    //   `%cRegistered new class: %c${friendlyName}`,
+    //   "color: blue",
+    //   "color: green",
+    // );
 
     return this.kls as any as new () => T;
   }
@@ -1084,129 +1060,3 @@ class FLabelField implements IConstructable {
     return this.name === "None";
   }
 }
-
-// class FixedArrayContainer<T> implements ReadonlyArray<T> {
-//     protected readonly property: UnProperties.UProperty<any, any>;
-//     public length: number;
-//     readonly [n: number]: T;
-
-//     constructor(property: UnProperties.UProperty) {
-//         if (property.arrayDimensions <= 1)
-//             throw new Error(`Invalid array length '${property.arrayDimensions} <= 1'`);
-
-//         this.property = property;
-//         this.length = property.arrayDimensions;
-
-//         for (let i = 0, len = property.arrayDimensions; i < len; i++) {
-//             Object.defineProperty(this, i, {
-//                 get: this.getValue.bind(this, i),
-//                 set: this.setValue.bind(this, i)
-//             });
-//         }
-//     }
-
-//     protected toArray(): T[] {
-//         const arr = new Array(this.length);
-
-//         for (let i = 0, len = this.length; i < len; i++)
-//             arr[i] = this[i];
-
-//         return arr;
-//     }
-
-//     public getValue(index: number): T { return this.property.getPropertyValue(index); }
-
-//     public setValue(index: number, value: T): void {
-//
-
-//         throw new Error("Not implemented error");
-//     }
-
-//     public toString() { return `FixedArray[${this.property}]`; }
-
-//     public filter<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): S[];
-//     public filter(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T[];
-//     public filter<S>(predicate: unknown, thisArg?: unknown): T[] | S[] {
-//         return this.toArray().filter(predicate as any, thisArg);
-//     }
-
-//     public toLocaleString(): string {
-//         throw new Error("Method not implemented.");
-//     }
-//     public concat(...items: ConcatArray<T>[]): T[];
-//     public concat(...items: (T | ConcatArray<T>)[]): T[];
-//     public concat(..._items: unknown[]): T[] {
-//         throw new Error("Method not implemented.");
-//     }
-//     public join(separator?: string): string {
-//         throw new Error("Method not implemented.");
-//     }
-//     slice(start?: number, end?: number): T[] {
-//         throw new Error("Method not implemented.");
-//     }
-//     indexOf(searchElement: T, fromIndex?: number): number {
-//         throw new Error("Method not implemented.");
-//     }
-//     lastIndexOf(searchElement: T, fromIndex?: number): number {
-//         throw new Error("Method not implemented.");
-//     }
-//     every<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): this is readonly S[];
-//     every(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): boolean;
-//     every(predicate: unknown, thisArg?: unknown): boolean {
-//         throw new Error("Method not implemented.");
-//     }
-//     some(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): boolean {
-//         throw new Error("Method not implemented.");
-//     }
-//     forEach(callbackfn: (value: T, index: number, array: readonly T[]) => void, thisArg?: any): void {
-//         throw new Error("Method not implemented.");
-//     }
-//     map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[] {
-//         throw new Error("Method not implemented.");
-//     }
-
-//     reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T): T;
-//     reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T, initialValue: T): T;
-//     reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: readonly T[]) => U, initialValue: U): U;
-//     reduce<U>(callbackfn: unknown, initialValue?: unknown): T | U {
-//         throw new Error("Method not implemented.");
-//     }
-//     reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T): T;
-//     reduceRight(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: readonly T[]) => T, initialValue: T): T;
-//     reduceRight<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: readonly T[]) => U, initialValue: U): U;
-//     reduceRight<U>(callbackfn: unknown, initialValue?: unknown): T | U {
-//         throw new Error("Method not implemented.");
-//     }
-//     find<S extends T>(predicate: (this: void, value: T, index: number, obj: readonly T[]) => value is S, thisArg?: any): S;
-//     find(predicate: (value: T, index: number, obj: readonly T[]) => unknown, thisArg?: any): T;
-//     find<S extends T>(predicate: unknown, thisArg?: unknown): T | S {
-//         throw new Error("Method not implemented.");
-//     }
-//     findIndex(predicate: (value: T, index: number, obj: readonly T[]) => unknown, thisArg?: any): number {
-//         throw new Error("Method not implemented.");
-//     }
-//     entries(): IterableIterator<[number, T]> {
-//         throw new Error("Method not implemented.");
-//     }
-//     keys(): IterableIterator<number> {
-//         throw new Error("Method not implemented.");
-//     }
-//     values(): IterableIterator<T> {
-//         throw new Error("Method not implemented.");
-//     }
-//     includes(searchElement: T, fromIndex?: number): boolean {
-//         throw new Error("Method not implemented.");
-//     }
-//     flatMap<U, This = undefined>(callback: (this: This, value: T, index: number, array: T[]) => U | readonly U[], thisArg?: This): U[] {
-//         throw new Error("Method not implemented.");
-//     }
-//     flat<A, D extends number = 1>(this: A, depth?: D): FlatArray<A, D>[] {
-//         throw new Error("Method not implemented.");
-//     }
-//     at(index: number): T {
-//         throw new Error("Method not implemented.");
-//     }
-//     [Symbol.iterator](): IterableIterator<T> {
-//         throw new Error("Method not implemented.");
-//     }
-// }

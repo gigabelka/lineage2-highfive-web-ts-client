@@ -430,7 +430,7 @@ abstract class UParticleEmitter extends UObject {
         //
 
         //
-        // console.log(this);
+        // // console.log(this);
 
         return {
           name: this.uuid,

@@ -86,9 +86,9 @@ abstract class APackage extends UEncodedFile {
     const dbgImportCount = header.importCount;
     const dbgImportOffset = header.importOffset.toString(16).toUpperCase();
 
-    console.log(
-      `'${readable.path}' => Names:${dbgNameOffset}[${dbgNameCount}] Exports:${dbgExportOffset}[${dbgExportCount}] Imports:${dbgImportOffset}[${dbgImportCount}]`,
-    );
+    // console.log(
+    //   `'${readable.path}' => Names:${dbgNameOffset}[${dbgNameCount}] Exports:${dbgExportOffset}[${dbgExportCount}] Imports:${dbgImportOffset}[${dbgImportCount}]`,
+    // );
 
     if (readable.path === "assets/maps/20_21.unr") {
       console.assert(header.getArchiveFileVersion() === 123);
@@ -403,13 +403,13 @@ abstract class APackage extends UEncodedFile {
         objectName === "State" &&
         groupName === "None"
       ) {
-        console.log(entry);
+        // console.log(entry);
       }
 
       let obj = pkg.fetchObjectByType(className, objectName, groupName);
 
       if (obj === null) {
-        console.log(pkg);
+        // console.log(pkg);
 
         throw new Error(
           `(${packageName}) [${className}, ${objectName}, ${groupName}] should not be null`,
@@ -454,10 +454,7 @@ abstract class APackage extends UEncodedFile {
           // group as it was referenced (e.g. "Etc"), while the target package's
           // export table may store it differently ("etc"). Fold case so the
           // group filter doesn't drop a legitimate match.
-          if (
-            pkg &&
-            groupName.toLowerCase() !== pkg.objectName.toLowerCase()
-          ) {
+          if (pkg && groupName.toLowerCase() !== pkg.objectName.toLowerCase()) {
             continue;
           }
         } else if (exp.idPackage < 0) {
@@ -604,7 +601,7 @@ abstract class ANativePackage extends APackage {
 
     this.buffer = new ArrayBuffer(0);
 
-    console.log(`'${this.path}' loaded in ${performance.now() - tStart} ms`);
+    // console.log(`'${this.path}' loaded in ${performance.now() - tStart} ms`);
 
     return this;
   }

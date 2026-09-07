@@ -48,11 +48,11 @@ for (const line of output.split(/\r?\n/)) {
     if (isErrorLine(line)) suppressing = isVendorLine(line);
     else if (!/^\s/.test(line)) suppressing = false;
     if (suppressing || line.length === 0) continue;
-    console.log(line);
+    // console.log(line);
 }
 
-console.log(
-    `\ntypecheck: ${ownErrors.length} ошибок в src/, ${vendorErrors} в node_modules/vendor (игнорируются)`,
-);
+// console.log(
+//     `\ntypecheck: ${ownErrors.length} ошибок в src/, ${vendorErrors} в node_modules/vendor (игнорируются)`,
+// );
 
 process.exit(ownErrors.length > 0 ? 1 : 0);

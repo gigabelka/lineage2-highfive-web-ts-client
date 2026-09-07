@@ -285,7 +285,7 @@ export default class MeshStaticMaterial extends ShaderMaterial {
 
     // debugger
 
-    // console.log(info);
+    // // console.log(info);
 
     super({
       vertexShader: VERTEX_SHADER,

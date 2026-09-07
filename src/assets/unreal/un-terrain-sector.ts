@@ -285,8 +285,12 @@ abstract class UTerrainSector extends UObject {
           // Transform by the layer's texture matrix to get UVs
           const uvVert = worldVert.applyMatrix4(layer.terrainMatrix);
 
-          uvs[layerOffset + idxOffset + 0] = Number.isFinite(uvVert.x) ? uvVert.x : 0;
-          uvs[layerOffset + idxOffset + 1] = Number.isFinite(uvVert.y) ? uvVert.y : 0;
+          uvs[layerOffset + idxOffset + 0] = Number.isFinite(uvVert.x)
+            ? uvVert.x
+            : 0;
+          uvs[layerOffset + idxOffset + 1] = Number.isFinite(uvVert.y)
+            ? uvVert.y
+            : 0;
         }
       }
     }
@@ -328,12 +332,8 @@ abstract class UTerrainSector extends UObject {
       bounds: {
         box: trueBoundingBox.isValid
           ? {
-              min: effectiveMin
-                .sub(center)
-                .getElements() as GD.Vector3Arr,
-              max: effectiveMax
-                .sub(center)
-                .getElements() as GD.Vector3Arr,
+              min: effectiveMin.sub(center).getElements() as GD.Vector3Arr,
+              max: effectiveMax.sub(center).getElements() as GD.Vector3Arr,
             }
           : null,
       },
@@ -412,7 +412,7 @@ abstract class UTerrainSector extends UObject {
     this.quadsX = pkg.read("int32");
     this.quadsY = pkg.read("int32");
 
-    // console.log(this.unkNum0, this.unkNum1)
+    // // console.log(this.unkNum0, this.unkNum1)
 
     // this.unkNum2 = pkg.read("uint16");
 
@@ -421,7 +421,7 @@ abstract class UTerrainSector extends UObject {
     this.offsetX = pkg.read("int32");
     this.offsetY = pkg.read("int32");
 
-    // console.log(this.offsetX, this.offsetY);
+    // // console.log(this.offsetX, this.offsetY);
 
     //
 
@@ -450,15 +450,11 @@ abstract class UTerrainSector extends UObject {
       // 8 * (2 + 17*17) + N bytes short and every later array count garbage.
       if (this.hasShadows && this.info) {
         this.shadowCount = pkg.read("int32");
-        this.shadowMaps = new Array<FPrimitiveArray<"uint8">>(
-          this.shadowCount,
-        );
+        this.shadowMaps = new Array<FPrimitiveArray<"uint8">>(this.shadowCount);
         this.shadowMapTimes = new Array<number>(this.shadowCount);
 
         for (let i = 0; i < this.shadowCount; i++) {
-          this.shadowMaps[i] = new FPrimitiveArray(BufferValue.uint8).load(
-            pkg,
-          );
+          this.shadowMaps[i] = new FPrimitiveArray(BufferValue.uint8).load(pkg);
           this.shadowMapTimes[i] =
             (i * 24) / this.shadowCount + 12 / this.shadowCount;
         }

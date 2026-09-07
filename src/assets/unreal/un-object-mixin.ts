@@ -20,7 +20,7 @@ Object.assign(UObject, {
       return;
     }
 
-    // console.log(this.name, "->", cls.name);
+    // // console.log(this.name, "->", cls.name);
 
     const baseClass = this as any;
 

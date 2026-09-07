@@ -143,7 +143,7 @@ async function writeCacheFile(fileName: string, sectorName: string, bytes: Uint8
     await writable.write(bytes as Uint8Array<ArrayBuffer>);
     await writable.close();
 
-    console.log(`[decode-cache] cached sector '${sectorName}' (${(bytes.length / 1024 / 1024).toFixed(1)} MB)`);
+    // console.log(`[decode-cache] cached sector '${sectorName}' (${(bytes.length / 1024 / 1024).toFixed(1)} MB)`);
 }
 
 async function writeCacheFileSafe(fileName: string, sectorName: string, bytes: Uint8Array): Promise<void> {
@@ -185,8 +185,8 @@ async function sweepDecodeCache(settings: GD.LoadSettings_T): Promise<void> {
         try { await dir.removeEntry(name); } catch (e) { }
     }
 
-    if (doomed.length > 0)
-        console.log(`[decode-cache] swept ${doomed.length} stale cache entries`);
+    // if (doomed.length > 0)
+    //     console.log(`[decode-cache] swept ${doomed.length} stale cache entries`);
 }
 
 /**

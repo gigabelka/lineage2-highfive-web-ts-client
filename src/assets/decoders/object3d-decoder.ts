@@ -638,7 +638,7 @@ function finishSectorStaticMeshes(
   // Decode celestials (NSun, NMoon) with their textures
   library.celestials.forEach((celestialInfo) => {
     try {
-      // console.log(`[Celestials] Processing celestial: type=${celestialInfo.type}, sprites=${celestialInfo.sprites?.length || 0}`);
+      // // console.log(`[Celestials] Processing celestial: type=${celestialInfo.type}, sprites=${celestialInfo.sprites?.length || 0}`);
       if (celestialInfo.sprites && celestialInfo.sprites.length > 0) {
         const spriteUuid = celestialInfo.sprites[0];
         const materialInfo = library.materials[

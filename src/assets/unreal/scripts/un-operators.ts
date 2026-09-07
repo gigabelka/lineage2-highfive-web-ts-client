@@ -86,7 +86,7 @@ function VSize(a: FVector) { return a.length(); }
 function Normal(a: FVector) { return a.normalized(); }
 function VRand() { return FVector.make(Math.random(), Math.random(), Math.random()); }
 
-function Log(s: string, tag?: string) { console.log(`[UEScript] ${tag ? `{${tag}} ` : ""}${s}`); }
+function Log(s: string, tag?: string) { /* console.log(`[UEScript] ${tag ? `{${tag}} ` : ""}${s}`); */ }
 function Warn(s: string) { console.warn(`[UEScript] ${s}`); }
 
 function op_cat_str_str(a: string, b: string) { return a.toString() + b.toString(); }

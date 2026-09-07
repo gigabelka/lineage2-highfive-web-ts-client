@@ -712,12 +712,12 @@ class RenderManager {
   }
 
   public debugPrintCamera() {
-    console.log(
-      [
-        `this.camera.position.set(${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z});`,
-        `this.controls.orbit.target.set(${this.controls.orbit.target.x}, ${this.controls.orbit.target.y}, ${this.controls.orbit.target.z});`,
-      ].join("\n"),
-    );
+    // console.log(
+    //   [
+    //     `this.camera.position.set(${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z});`,
+    //     `this.controls.orbit.target.set(${this.controls.orbit.target.x}, ${this.controls.orbit.target.y}, ${this.controls.orbit.target.z});`,
+    //   ].join("\n"),
+    // );
   }
 
   public takeScreenshot() {
@@ -778,7 +778,7 @@ class RenderManager {
       event.preventDefault();
       event.stopPropagation();
       this.frustumCullingEnabled = !this.frustumCullingEnabled;
-      console.log(`Frustum culling is now: ${this.frustumCullingEnabled}`);
+      // console.log(`Frustum culling is now: ${this.frustumCullingEnabled}`);
       return;
     }
 
@@ -1139,7 +1139,7 @@ class RenderManager {
         // );
         this.player.goTo(collidable.point);
 
-      console.log(intersection);
+      // console.log(intersection);
 
       if ((intersection.object as any).isMesh) {
         const mesh = intersection.object as THREE.Mesh;
@@ -1156,7 +1156,7 @@ class RenderManager {
           }
 
           const nodeIndex = nodeIndexAttr.getX(vertexIndex);
-          console.log(`Node ID: ${nodeIndex}`);
+          // console.log(`Node ID: ${nodeIndex}`);
         }
       }
     } catch (e) {
@@ -2207,7 +2207,7 @@ class RenderManager {
           : 1);
 
       // if (this.dirKeys.shift)
-      //     console.log("Camspeed:", camSpeed, Date.now() - this.shiftTimeDown)
+      //     // console.log("Camspeed:", camSpeed, Date.now() - this.shiftTimeDown)
 
       if (this.dirKeys.left) sidewaysVelocity -= 1;
       if (this.dirKeys.right) sidewaysVelocity += 1;
@@ -2232,32 +2232,9 @@ class RenderManager {
       this.camera.position.add(cameraVelocity);
     }
 
-    // const sector = this.scene.children[1].children[0].children[0] as any;
-
-    // //
-
-    // const zoneIndex = sector.findPositionZone(this.camera.position);
-    // // sector.children.forEach((ch: any) => ch.visible = false);
-    // // sector.children[zoneIndex].visible = true;
-
-    // const bspZone = sector.bspZones[zoneIndex];
-    // const connectivityFlags = bspZone.connectivity
-
-    // for (let i = 0, len = sector.bspZones.length, flag = 1n; i < len; i++, flag = flag << 1n) {
-    //     const flagValue = connectivityFlags & flag;
-    //     const isZoneVisible = Boolean(flagValue).valueOf();
-
-    //     sector.zones.children[i].visible = isZoneVisible;
-    // }
-
     this.emitterSimDue = this.nextPhysicsTick <= currentTime;
 
     if (this.emitterSimDue) {
-      // this.physicsWorld.step();
-      // this.player.update(this, currentTime, deltaTime);
-
-      // console.log(this.player.position);
-
       this.nextPhysicsTick = currentTime + 1000 / 30;
     }
 
@@ -2287,9 +2264,9 @@ class RenderManager {
       this.activeMusicId = musicId;
 
       if (musicId >= 0) {
-        console.log(
-          `[Music] Playing track ${musicId} (forced: ${musicInfo.isForced})`,
-        );
+        // console.log(
+        //   `[Music] Playing track ${musicId} (forced: ${musicInfo.isForced})`,
+        // );
         this.audioManager.playMusic(
           musicId,
           musicInfo.isLooped,
@@ -2297,7 +2274,7 @@ class RenderManager {
           currentTime,
         );
       } else {
-        console.log(`[Music] Letting current track finish (left music volume)`);
+        // console.log(`[Music] Letting current track finish (left music volume)`);
         this.audioManager.letTrackFinish();
       }
     }
