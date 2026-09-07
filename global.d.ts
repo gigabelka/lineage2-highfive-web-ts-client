@@ -1,4 +1,4 @@
-/// <reference types="@l2js/core" />
+/// <reference path="./vendor/l2js-core/index.d.ts" />
 import C = L2JS.Core;
 import G = L2JS.Client;
 import GR = L2JS.Client.Rendering;

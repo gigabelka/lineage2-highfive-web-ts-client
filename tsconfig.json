@@ -19,10 +19,11 @@
                 "./src/assets/unreal/*"
             ],
             "@l2js/core": [
-                "./node_modules/@l2js/core/src/index.ts"
+                "./vendor/l2js-core/src/index.ts"
             ],
             "@l2js/core/*": [
-                "./node_modules/@l2js/core/src/*"
+                "./vendor/l2js-core/src/*",
+                "./vendor/l2js-core/*"
             ],
             "@dimforge/rapier3d": [
                 "./node_modules/@dimforge/rapier3d-compat"
@@ -42,6 +43,9 @@
     },
     "exclude": [
         "node_modules",
-        "bin"
+        "bin",
+        // vendored @l2js/core - checked only transitively via project imports
+        // (like node_modules was); keeps its standalone .d.ts out of the program
+        "vendor"
     ],
 }

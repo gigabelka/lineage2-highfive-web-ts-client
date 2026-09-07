@@ -84,31 +84,6 @@ function rawShadersPlugin(): Plugin {
     };
 }
 
-/**
- * `@l2js/core/src/supported-extensions.js` is hand-authored as CommonJS
- * (`module.exports = { SUPPORTED_EXTENSIONS }`). Everything else in `@l2js/core/src`
- * is `.ts`, so it's consumed as raw source (`optimizeDeps.exclude`) and never runs
- * through esbuild's CJS->ESM interop. Vite then treats this `.js` as ESM, `module`
- * is undefined, and `import { SUPPORTED_EXTENSIONS }` resolves to nothing. Rewrite
- * the one offending file to ESM on the fly.
- */
-function l2CoreCjsShimPlugin(): Plugin {
-    const RE = /[\\/]@l2js[\\/]core[\\/]src[\\/]supported-extensions\.js$/;
-    return {
-        name: "l2-core-cjs-shim",
-        enforce: "pre",
-        transform(src, id) {
-            if (!RE.test(id.split("?")[0])) return null;
-            const m = src.match(/SUPPORTED_EXTENSIONS\s*=\s*(\[[\s\S]*?\])/);
-            if (!m) return null;
-            return {
-                code: `export const SUPPORTED_EXTENSIONS = ${m[1]};\nexport default { SUPPORTED_EXTENSIONS };`,
-                map: null
-            };
-        }
-    };
-}
-
 /** Byte-range aware static serving of the assets root under /assets, plus the
  *  ?sectorTest report sink. Ported from configs/create-config.js + chunker-middleware.js. */
 function devServerPlugin(): Plugin {
@@ -214,16 +189,12 @@ export default defineConfig({
             { find: "@native", replacement: path.resolve(ROOT, "src/assets/unreal/scripts/un-native-registry.ts") },
             { find: /^@client\/(.*)$/, replacement: path.resolve(ROOT, "src") + "/$1" },
             { find: /^@unreal\/(.*)$/, replacement: path.resolve(ROOT, "src/assets/unreal") + "/$1" },
-            { find: /^@l2js\/core$/, replacement: path.resolve(ROOT, "node_modules/@l2js/core/src/index.ts") },
+            { find: /^@l2js\/core$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src/index.ts") },
             // some source files import "@l2js/core/src/…", others "@l2js/core/…" - collapse the optional "src/"
-            { find: /^@l2js\/core\/(?:src\/)?(.*)$/, replacement: path.resolve(ROOT, "node_modules/@l2js/core/src") + "/$1" },
+            { find: /^@l2js\/core\/(?:src\/)?(.*)$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src") + "/$1" },
             { find: /^@dimforge\/rapier3d$/, replacement: "@dimforge/rapier3d-compat" },
             { find: /^path$/, replacement: "path-browserify" }
         ]
-    },
-    optimizeDeps: {
-        // @l2js/core is consumed as raw TS source inside node_modules
-        exclude: ["@l2js/core"]
     },
     css: {
         preprocessorOptions: {
@@ -243,7 +214,7 @@ export default defineConfig({
         // LIVE_RELOAD=0 for automated ?sectorTest sweeps - a mid-sweep reload corrupts the report
         hmr: process.env.LIVE_RELOAD === "0" ? false : undefined,
         fs: {
-            allow: [ROOT, path.resolve(ROOT, "node_modules/@l2js")]
+            allow: [ROOT]
         }
     },
     build: {
@@ -252,5 +223,5 @@ export default defineConfig({
         target: "chrome80",
         sourcemap: true
     },
-    plugins: [l2CoreCjsShimPlugin(), assetListPlugin(), rawShadersPlugin(), devServerPlugin()]
+    plugins: [assetListPlugin(), rawShadersPlugin(), devServerPlugin()]
 });

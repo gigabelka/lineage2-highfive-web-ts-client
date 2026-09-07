@@ -11,14 +11,14 @@
         "src/**/*.{test,spec}.ts"
     ],
     "project": ["src/**/*.ts"],
-    "ignore": ["**/*.d.ts", "bin/**", "configs/**", "reference/**"],
-    "ignoreDependencies": ["@l2js/core", "path-browserify"],
+    "ignore": ["**/*.d.ts", "bin/**", "configs/**", "reference/**", "vendor/**"],
+    "ignoreDependencies": ["path-browserify", "pako", "gmp-wasm", "@types/pako"],
     "paths": {
         "@native": ["./src/assets/unreal/scripts/un-native-registry.ts"],
         "@client/*": ["./src/*"],
         "@unreal/*": ["./src/assets/unreal/*"],
-        "@l2js/core": ["./node_modules/@l2js/core/src/index.ts"],
-        "@l2js/core/*": ["./node_modules/@l2js/core/src/*"],
+        "@l2js/core": ["./vendor/l2js-core/src/index.ts"],
+        "@l2js/core/*": ["./vendor/l2js-core/src/*", "./vendor/l2js-core/*"],
         "@dimforge/rapier3d": ["./node_modules/@dimforge/rapier3d-compat"]
     }
 }

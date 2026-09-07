@@ -23,6 +23,7 @@ export default tseslint.config(
             "docs/**",
             "html/**",
             "node_modules/**",
+            "vendor/**",
             "**/*.d.ts",
             "*-report.jsonl"
         ]

@@ -15,7 +15,7 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 - `npm test` — Vitest (`vitest run`), config in `vitest.config.ts` (standalone — it does **not** load `vite.config.ts` or its dev-server plugins). Picks up `src/**/*.{test,spec}.ts`. `npm run test:watch` / `npm run test:ui` for the interactive runner. Run one file with `npx vitest run src/path/to/file.test.ts`, one case with `npx vitest run -t "test name"`. Unit-level coverage is almost nonexistent — the only spec is the smoke test in `src/__smoke__/`; `?sectorTest` is the real integration check. Add tests alongside the code you change.
 - `tsconfig.json` is `emitDeclarationOnly` — types are never emitted to JS; esbuild/Vite strips them. Type errors do **not** fail the build or the tests.
 - `npm run lint` / `npm run lint:fix` — ESLint v10 flat config (`eslint.config.mjs`): `js.recommended` + `typescript-eslint` recommended (no type-aware rules). Advisory only, not wired into `build`/`test` — like `knip`. Stylistic noise on the intentionally "dirty" reverse-engineering code is downgraded to `warn`; only rules that flag real defects (assignment in condition, unreachable code, duplicate keys, `case` fall-through) stay errors. Ignores `bin/ configs/ reference/ docs/ html/ *.d.ts *-report.jsonl`.
-- `npm run typecheck` — `tools/typecheck.ts` (via `tsx`): runs `tsc --noEmit`, prints all output, but sets the exit code **only** from error lines outside `node_modules/`. `@l2js/core` is consumed as raw TS source so `tsc` type-checks it too and it emits ~30 errors unrelated to this project's code; the wrapper suppresses those. Advisory, same as `lint`/`knip`.
+- `npm run typecheck` — `tools/typecheck.ts` (via `tsx`): runs `tsc --noEmit`, prints all output, but sets the exit code **only** from error lines outside `node_modules/` and `vendor/`. The vendored `@l2js/core` source (`vendor/l2js-core/`) is type-checked transitively and emits ~30 errors unrelated to this project's code; the wrapper suppresses those. Advisory, same as `lint`/`knip`.
 - `npm run knip` — reports unused files, exports, and `package.json` dependencies (`knip.json` lists the entry points: client graph, decode worker, `?sectorTest`/`?precacheSectors` modes, configs, `tools/`). Advisory only; it never fails the build. Expect false positives on the redundant `export { X }` next to `export default X` pattern and on classes registered only via the `un-package.ts` import hub.
 - `?sectorTest` (see below) is still the closest thing to a full integration test.
 - Path aliases live in **three** places now — keep them in sync: `vite.config.ts` (`resolve.alias`), `tsconfig.json` (`compilerOptions.paths`), and `vitest.config.ts` (`resolve.alias`).
@@ -24,20 +24,19 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 
 `c:/Games/HighFive/` must exist (the real client assets install). `vite.config.ts`'s `assetListPlugin` walks it on config-resolve (dev) and `buildStart` (build) and writes `html/asset-list.json` (git-ignored, auto-generated — never edit by hand; served at `/asset-list.json`). Without assets the build still runs but the app has nothing to load.
 
-`@l2js/core` is a private dependency pulled over SSH (`git+ssh://git@github.com:realratchet/l2js-core.git#stable`); `npm install` needs GitHub SSH access.
+`@l2js/core` is **vendored** into the repo at `vendor/l2js-core/` (raw TS source, upstream `realratchet/l2js-core`). It's consumed through the `@l2js/core` path alias, not as an npm dependency, so `npm install` needs no GitHub SSH access. Its two runtime deps (`pako`, `gmp-wasm`) are now direct dependencies in `package.json`. Edit `vendor/l2js-core/**` in place when core needs changes — there is no separate repo checkout.
 
 `html/` is Vite's `publicDir` served at `/` — it holds committed static assets (`skybox.png`) plus the generated `asset-list.json`. `bin/` is the build output directory (`build-dev` / `preview`), git-ignored.
 
 ## Build system: Vite (`vite.config.ts`)
 
-The project was migrated off Webpack; there is no more `configs/create-config.js`. `vite.config.ts` is the single source of truth and carries four custom plugins:
+The project was migrated off Webpack; there is no more `configs/create-config.js`. `vite.config.ts` is the single source of truth and carries three custom plugins:
 
-- **`l2CoreCjsShimPlugin`** — `@l2js/core` is consumed as raw TS source (`optimizeDeps.exclude`), so its one hand-authored CommonJS file (`src/supported-extensions.js`) never goes through esbuild's CJS→ESM interop. The plugin rewrites that one file to ESM on the fly.
 - **`assetListPlugin`** — regenerates `html/asset-list.json` (see above).
 - **`rawShadersPlugin`** — replaces `raw-loader`: `.vs`/`.fs`/`.glsl` imports resolve to the file text as a default-exported string. Imports in `src/materials/**` and `register-chunks.ts` carry **no `?raw` suffix**, so a plugin is required instead of Vite's built-in `?raw`.
 - **`devServerPlugin`** — byte-range-aware static serving of `c:/Games/HighFive/` under `/assets`, plus the `POST /sector-test/report` sink that appends to `sector-test-report.jsonl`.
 
-Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`; `server.fs.allow` is widened to reach `node_modules/@l2js`.
+Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`. The `@l2js/core` alias maps to `vendor/l2js-core/src` in all three alias locations (`vite.config.ts`, `tsconfig.json`, `vitest.config.ts`); the regex form collapses the optional `src/` in `@l2js/core/src/…` vs `@l2js/core/…` imports, and `tsconfig.json` mirrors it with a two-entry `paths` fallback. `vendor/l2js-core/src/supported-extensions.js` was rewritten to plain ESM when vendored (it was CommonJS upstream), so the old `l2CoreCjsShimPlugin` is gone.
 
 ## Client / decode-worker separation (critical)
 
@@ -105,7 +104,7 @@ Defined in **three** places: `vite.config.ts` (`resolve.alias`), `tsconfig.json`
 | `@client/*`  | `src/*`                                           |
 | `@unreal/*`  | `src/assets/unreal/*`                             |
 | `@native`    | `src/assets/unreal/scripts/un-native-registry.ts` |
-| `@l2js/core` | `node_modules/@l2js/core/src` (source, not built) |
+| `@l2js/core` | `vendor/l2js-core/src` (vendored raw source)      |
 
 VSCode is configured for non-relative imports (`typescript.preferences.importModuleSpecifier: non-relative`) — prefer alias imports over `../../..`.
 

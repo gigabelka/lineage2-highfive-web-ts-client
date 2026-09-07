@@ -6,7 +6,7 @@ const ROOT = __dirname;
 /**
  * Standalone Vitest config. Intentionally does NOT reuse `vite.config.ts` so the
  * custom dev-server plugins (`assetListPlugin`, `devServerPlugin`, raw shaders,
- * the `@l2js/core` CJS shim) never run inside the test environment.
+ * raw shaders) never run inside the test environment.
  *
  * The `resolve.alias` block below MUST stay in sync with `vite.config.ts`
  * (`resolve.alias`) and `tsconfig.json` (`compilerOptions.paths`).
@@ -20,8 +20,8 @@ export default defineConfig({
             { find: "@native", replacement: path.resolve(ROOT, "src/assets/unreal/scripts/un-native-registry.ts") },
             { find: /^@client\/(.*)$/, replacement: path.resolve(ROOT, "src") + "/$1" },
             { find: /^@unreal\/(.*)$/, replacement: path.resolve(ROOT, "src/assets/unreal") + "/$1" },
-            { find: /^@l2js\/core$/, replacement: path.resolve(ROOT, "node_modules/@l2js/core/src/index.ts") },
-            { find: /^@l2js\/core\/(?:src\/)?(.*)$/, replacement: path.resolve(ROOT, "node_modules/@l2js/core/src") + "/$1" },
+            { find: /^@l2js\/core$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src/index.ts") },
+            { find: /^@l2js\/core\/(?:src\/)?(.*)$/, replacement: path.resolve(ROOT, "vendor/l2js-core/src") + "/$1" },
             { find: /^@dimforge\/rapier3d$/, replacement: "@dimforge/rapier3d-compat" },
             { find: /^path$/, replacement: "path-browserify" }
         ]
