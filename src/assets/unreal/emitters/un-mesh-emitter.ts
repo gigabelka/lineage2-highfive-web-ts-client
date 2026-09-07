@@ -15,7 +15,7 @@ abstract class UMeshEmitter extends UParticleEmitter {
             return null;
         }
 
-        return Object.assign(super.getDecodeInfo(builder), {
+        return Object.assign(super.getDecodeInfo(builder)!, {
             type: "MeshEmitter",
             mesh: builder.pullStaticMesh(this.mesh)
         });

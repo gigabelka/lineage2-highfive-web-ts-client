@@ -1,9 +1,13 @@
 import { UObject } from "@l2js/core";
 
-abstract class FVector extends UObject implements GD.IDecodableStruct<GD.Vector3Arr> {
+class FVector extends UObject implements GD.IDecodableStruct<GD.Vector3Arr> {
     // declare protected ["constructor"]: { new(): never } & typeof FVector;
 
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FVector;
+    declare static readonly class: () => typeof FVector;
 
     declare public x: number;
     declare public y: number;

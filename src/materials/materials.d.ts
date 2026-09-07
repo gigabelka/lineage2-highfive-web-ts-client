@@ -16,11 +16,11 @@ declare module "*.glsl" {
 type ParticleMaterialInitSettings_T = {
     name: string
     type: "sprite" | "texture",
-    map: IDecodedParameter,
-    sprites: IDecodedParameter[],
-    blendingMode: ParticleBlendModes_T,
+    map: GD.IDecodedParameter,
+    sprites: GD.IDecodedParameter[],
+    blendingMode: GD.ParticleBlendModes_T,
     opacity: number,
     framerate?: number
 };
 
-type ParticleMaterial = import("./particle-material").ParticleMaterial;
+type ParticleMaterial = import("./particle-material/particle-material").default;

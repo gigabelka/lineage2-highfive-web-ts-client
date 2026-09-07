@@ -351,7 +351,7 @@ class LitActorMesh extends Mesh {
     if (!this.lightInfo && !this.ambient && !this.isSunAffected) return;
     if (this.needsInitialLighting && !this.lightingGate) return;
 
-    const attrColors = this.geometry.getAttribute("lighting");
+    const attrColors = this.geometry.getAttribute("lighting") as BufferAttribute;
     const colorArray = attrColors.array as Uint8ClampedArray;
 
     // Check if any lights need updating
@@ -440,7 +440,7 @@ class LitActorMesh extends Mesh {
         const perActorAmbient = this.perActorAmbient as {
           startVertex: number;
           count: number;
-          ambient: typeof this.ambient;
+          ambient?: { glow: number; vector: number[]; isUnlit: boolean };
         }[];
         for (const actor of perActorAmbient) {
           if (actor.ambient && actor.ambient.isUnlit) {

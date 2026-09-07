@@ -1,7 +1,11 @@
 import { UObject } from "@l2js/core";
 
-abstract class FScale extends UObject {
+class FScale extends UObject {
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FScale;
+    declare static readonly class: () => typeof FScale;
 
     declare public readonly scale: GA.FVector;
 

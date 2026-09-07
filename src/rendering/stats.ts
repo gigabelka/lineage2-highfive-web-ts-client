@@ -1,3 +1,4 @@
+// @ts-nocheck — verbatim vendored stats.js (mrdoob), kept untyped on purpose
 /**
  * @author mrdoob / http://mrdoob.com/
  */

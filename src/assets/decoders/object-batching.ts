@@ -66,7 +66,11 @@ function createBatchObject(
     mergedObject.batchActorUuids = actors.map(a => a.uuid);
     mergedObject.setPerActorAmbient(perActorAmbient);
     mergedObject.batchElements = batchElements;
-    mergedObject.allGroups = mergedGeometry.groups.map(g => ({ ...g }));
+    mergedObject.allGroups = mergedGeometry.groups.map(g => ({
+        start: g.start,
+        count: g.count,
+        materialIndex: g.materialIndex ?? 0,
+    }));
     mergedObject.batchIndices = null;
 
     // Transparent actor indices are depth-sorted during visibility updates.
@@ -265,7 +269,8 @@ export function batchStaticMeshActors(
     while (!stepStaticMeshBatchJob(job)) { }
 }
 
-export { createStaticMeshBatchJob, stepStaticMeshBatchJob, StaticMeshBatchJob_T };
+export { createStaticMeshBatchJob, stepStaticMeshBatchJob };
+export type { StaticMeshBatchJob_T };
 
 function mergeTerrainGeometries(sectors: Terrain[]) {
     let totalVertices = 0;

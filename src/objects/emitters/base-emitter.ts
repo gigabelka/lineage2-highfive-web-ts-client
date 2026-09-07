@@ -955,7 +955,7 @@ abstract class BaseEmitter extends Object3D {
             this.addVelocityMultiplierRange.max,
           )
             .clone()
-            .multiply(owner.AbsoluteVelocity),
+            .multiply((owner as any).AbsoluteVelocity),
         );
 
     if (this.addVelocityFromOtherEmitter >= 0) {
@@ -1160,18 +1160,19 @@ abstract class BaseEmitter extends Object3D {
 
     // Verify range of critical variables.
     if (owner) {
+      const ownerEmitters = (owner as any).Emitters;
       if (this.addLocationFromOtherEmitter >= 0)
         this.addLocationFromOtherEmitter =
           __break__() &&
-          clamp(this.addLocationFromOtherEmitter, 0, owner.Emitters.Num() - 1);
+          clamp(this.addLocationFromOtherEmitter, 0, ownerEmitters.Num() - 1);
       if (this.addVelocityFromOtherEmitter >= 0)
         this.addVelocityFromOtherEmitter =
           __break__() &&
-          clamp(this.addVelocityFromOtherEmitter, 0, owner.Emitters.Num() - 1);
+          clamp(this.addVelocityFromOtherEmitter, 0, ownerEmitters.Num() - 1);
       if (this.spawnFromOtherEmitter >= 0)
         this.spawnFromOtherEmitter =
           __break__() &&
-          clamp(this.spawnFromOtherEmitter, 0, owner.Emitters.Num() - 1);
+          clamp(this.spawnFromOtherEmitter, 0, ownerEmitters.Num() - 1);
     } else return 0;
 
     // Update velocity loss range.

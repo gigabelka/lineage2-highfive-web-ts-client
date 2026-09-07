@@ -142,7 +142,9 @@ abstract class ULight extends UAActor {
     return [x * brightness, y * brightness, z * brightness];
   }
 
-  public getDecodeInfo(library: GD.DecodeLibrary): GD.ILightDecodeInfo {
+  public getDecodeInfo(
+    library: GD.DecodeLibrary,
+  ): GD.ILightDecodeInfo | GD.ISunLightDecodeInfo {
     //
 
     return {

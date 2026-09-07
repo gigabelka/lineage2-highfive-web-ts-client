@@ -111,7 +111,7 @@ const DEFAULT_FAR = 100_000_000;
 const DEFAULT_CLEAR_COLOR = 0x0c0c0c;
 const DEFAULT_HORIZONTAL_FOV = 60; // Matches user.ini DefaultFOV/DesiredFOV (was 90 from l2.ini)
 
-type ZoneObject = import("../objects/zone-object").ZoneObject;
+type ZoneObject = import("../objects/zone-object").default;
 type SectorObject = import("../objects/zone-object").SectorObject;
 type SectorMaterialBinding_T = {
   object: THREE.Mesh;

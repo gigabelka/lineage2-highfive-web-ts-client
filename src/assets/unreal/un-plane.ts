@@ -1,10 +1,14 @@
 import FVector from "@client/assets/unreal/un-vector";
 import UObject from "@l2js/core";
 
-abstract class FPlane extends UObject implements GD.IDecodableStruct<GD.Vector4Arr> {
+class FPlane extends UObject implements GD.IDecodableStruct<GD.Vector4Arr> {
     declare public ["constructor"]: typeof FPlane;
 
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FPlane;
+    declare static readonly class: () => typeof FPlane;
 
     declare public x: number;
     declare public y: number;

@@ -1,4 +1,14 @@
-import type { ILazyAssetHandle, IReadyAssetHandle } from "@l2js/core";
+// local contracts for the two-stage asset fetch (lazy OPFS handle -> readable buffer)
+interface IReadyAssetHandle {
+    readonly isReadable: true;
+    readonly buffer: ArrayBuffer;
+    getReadable(): Promise<IReadyAssetHandle>;
+}
+
+interface ILazyAssetHandle {
+    readonly isReadable: boolean;
+    getReadable(): Promise<IReadyAssetHandle>;
+}
 
 async function fetchCached(path: string): Promise<ILazyAssetHandle> {
     const root = await navigator.storage.getDirectory();

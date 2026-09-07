@@ -990,7 +990,7 @@ function decodeBones(
 function decodeAnimation(
   library: GD.DecodeLibrary,
   name: string,
-  info: IKeyframeDecodeInfo_T[],
+  info: GD.IKeyframeDecodeInfo_T[],
 ) {
   const tracks = info.map((info) => {
     let KeyframeTrackConstructor: typeof KeyframeTrack;
@@ -1106,7 +1106,12 @@ function decodeMeshEmitter(
     new MeshBasicMaterial({ color: 0xff00ff });
 
   const emitter = new MeshEmitter(
-    Object.assign(decodeEmitterConfig(info), { geometry, materials }),
+    Object.assign(decodeEmitterConfig(info), {
+      geometry,
+      // decodeMaterial yields THREE materials here; MeshEmitter.initParticleMesh
+      // reads them through optional chaining, so the init-settings shape is nominal
+      materials: materials as unknown as ParticleMaterialInitSettings_T[],
+    }),
   );
 
   applySimpleProperties(library, emitter, info);
@@ -1123,7 +1128,7 @@ function decodeSpriteEmitter(
     material: info.texture,
     opacity: info.opacity,
     blendingMode: info.blendingMode,
-  } as GD.IParticleMaterialDecodeInfo) as any as GD.ParticleMaterialInitSettings_T;
+  } as GD.IParticleMaterialDecodeInfo) as any as ParticleMaterialInitSettings_T;
 
   const emitter = new SpriteEmitter(
     Object.assign(decodeEmitterConfig(info), {
@@ -1144,7 +1149,7 @@ function decodeBeamEmitter(library: GD.DecodeLibrary, info: any) {
     material: info.texture,
     opacity: info.opacity,
     blendingMode: info.blendingMode,
-  } as GD.IParticleMaterialDecodeInfo) as any as GD.ParticleMaterialInitSettings_T;
+  } as GD.IParticleMaterialDecodeInfo) as any as ParticleMaterialInitSettings_T;
 
   const emitter = new BeamEmitter(
     Object.assign(decodeEmitterConfig(info), {
@@ -1247,5 +1252,5 @@ export {
   decodeSectorStaticMeshes,
   createSectorStaticMeshDecodeJob,
   stepSectorStaticMeshDecodeJob,
-  SectorStaticMeshDecodeJob_T,
 };
+export type { SectorStaticMeshDecodeJob_T };

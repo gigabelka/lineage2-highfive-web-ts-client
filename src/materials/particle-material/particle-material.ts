@@ -14,10 +14,12 @@ import {
   SrcColorFactor,
   SrcAlphaFactor,
   ShaderMaterial,
+  Uniform,
   UniformsUtils,
   UniformsLib,
   Vector4,
 } from "three";
+import type { Blending, BlendingDstFactor, BlendingSrcFactor } from "three";
 import VERTEX_SHADER from "./shader/shader-particle.vs";
 import FRAGMENT_SHADER from "./shader/shader-particle.fs";
 import { appendGlobalUniforms } from "../global-uniforms";
@@ -68,7 +70,7 @@ class ParticleMaterial extends ShaderMaterial {
     if (opacity !== undefined) uniforms.opacity.value = opacity;
     uniforms.diffuse.value = new Color(0xffffff);
     uniforms.alphaTest.value = 1e-3;
-    uniforms.uvOffsetScale = { value: new Vector4(0, 0, 1, 1) };
+    uniforms.uvOffsetScale = new Uniform(new Vector4(0, 0, 1, 1));
 
     const defines: Record<string, any> = { USE_FOG: "", USE_ALPHATEST: "" };
 
@@ -125,7 +127,7 @@ class AnimatedParticleMaterial extends ShaderMaterial {
     if (opacity !== undefined) uniforms.opacity.value = opacity;
     uniforms.diffuse.value = new Color(0xffffff);
     uniforms.alphaTest.value = 1e-3;
-    uniforms.uvOffsetScale = { value: new Vector4(0, 0, 1, 1) };
+    uniforms.uvOffsetScale = new Uniform(new Vector4(0, 0, 1, 1));
 
     const defines: Record<string, any> = {
       USE_MAP: "",
@@ -177,7 +179,14 @@ export { AnimatedParticleMaterial };
 // Particle-specific blend table (SetParticleMaterial in the leaked source), separate from AActor::Style.
 export function getPartcileBlendingSettings(
   blendingMode: GD.ParticleBlendModes_T,
-) {
+): {
+  blending: Blending;
+  blendSrc?: BlendingSrcFactor | BlendingDstFactor;
+  blendDst?: BlendingDstFactor;
+  blendSrcAlpha?: number;
+  blendDstAlpha?: number;
+  isAdditive?: boolean;
+} {
   // UE2 renders these modes into a backbuffer whose alpha is irrelevant. Our
   // transparent intermediate target uses alpha for later compositing, so custom
   // RGB blends must leave destination alpha alone. Applying e.g. Darken's

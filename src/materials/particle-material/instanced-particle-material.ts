@@ -1,4 +1,4 @@
-import { DoubleSide, FrontSide, ShaderMaterial, UniformsUtils, UniformsLib, Vector3 } from "three";
+import { DoubleSide, FrontSide, ShaderMaterial, Uniform, UniformsUtils, UniformsLib, Vector3 } from "three";
 import VERTEX_SHADER from "./shader/shader-particle-instanced.vs";
 import FRAGMENT_SHADER from "./shader/shader-particle-instanced.fs";
 import { appendGlobalUniforms } from "../global-uniforms";
@@ -13,10 +13,10 @@ class InstancedParticleMaterial extends ShaderMaterial {
             UniformsLib.fog
         ]));
 
-        uniforms.map = { value: map?.uniforms.map.texture ?? null };
+        uniforms.map = new Uniform(map?.uniforms.map.texture ?? null);
         fixParticleTextureSampling(uniforms.map.value, usesSubdivision === true);
-        uniforms.alphaTest = { value: 1e-3 };
-        uniforms.particleProjectionNormal = { value: projectionNormal?.clone() ?? new Vector3(0, 0, 1) };
+        uniforms.alphaTest = new Uniform(1e-3);
+        uniforms.particleProjectionNormal = new Uniform(projectionNormal?.clone() ?? new Vector3(0, 0, 1));
 
         const defines: Record<string, any> = { USE_FOG: "", USE_ALPHATEST: "" };
 

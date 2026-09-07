@@ -19,7 +19,7 @@ abstract class UPawn extends UAActor {
 
         meshInfo.name = this.objectName;
         meshInfo.position = this.location.getElements();
-        meshInfo.scale = this.scale.getElements().map(v => v * this.drawScale) as GD.Vector3Arr;
+        meshInfo.scale = this.scale.getElements().map((v: number) => v * this.drawScale) as GD.Vector3Arr;
         meshInfo.quaternion = this.rotation.getQuaternionElements();
 
         return meshInfo;

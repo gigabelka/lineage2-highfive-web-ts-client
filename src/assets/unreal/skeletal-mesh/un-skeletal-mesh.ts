@@ -235,6 +235,8 @@ class FStaticModelLOD extends UObject {
     const useNewWedges = pkg.read("uint32");
 
     if (useNewWedges !== 0) return this;
+
+    return this;
   }
 }
 
@@ -381,7 +383,7 @@ abstract class USkeletalMesh extends ULodMesh {
     );
     const skeleton = collectSkeleton(this.refSkeleton);
 
-    const materials = this.lodMeshMaterials.map((mat: UStaticMeshMaterial) =>
+    const materials = this.lodMeshMaterials.map((mat: GA.UStaticMeshMaterial) =>
       builder.pullMaterial(mat),
     );
 
@@ -389,7 +391,7 @@ abstract class USkeletalMesh extends ULodMesh {
       name: this.uuid,
       materialType: "group",
       materials,
-    } as IMaterialGroupDecodeInfo;
+    } as GD.IMaterialGroupDecodeInfo;
     const geometryInfo = {
       attributes: {
         positions,
@@ -402,7 +404,7 @@ abstract class USkeletalMesh extends ULodMesh {
       bounds: this.decodeBoundsInfo(),
     };
 
-    const animations: Record<string, IKeyframeDecodeInfo_T[]> = {};
+    const animations: Record<string, GD.IKeyframeDecodeInfo_T[]> = {};
 
     const boneCount = this.refSkeleton.length;
     const boneMap = new Array(boneCount);
@@ -432,7 +434,7 @@ abstract class USkeletalMesh extends ULodMesh {
 
         const animName = sequence.name;
         const framerate = sequence.framerate;
-        const keyframes: IKeyframeDecodeInfo_T[] = [];
+        const keyframes: GD.IKeyframeDecodeInfo_T[] = [];
 
         for (let i = 0, len = move.boneIndices.getElemCount(); i < len; i++) {
           const boneIndexMesh = move.boneIndices.getElem(i);
@@ -509,7 +511,7 @@ abstract class USkeletalMesh extends ULodMesh {
         materials: this.uuid,
         skeleton,
         animations,
-      } as ISkinnedMeshObjectDecodeInfo,
+      } as GD.ISkinnedMeshObjectDecodeInfo,
       geometry: geometryInfo,
       material: materialInfo,
     };
@@ -536,7 +538,7 @@ function buildIndices(faces: FTriangle[], materialCount: number) {
   }
 
   const indices = new TypedIndicesArray(indicesByMaterial.flat());
-  const groups: ArrGeometryGroup[] = new Array(materialCount);
+  const groups: GD.ArrGeometryGroup[] = new Array(materialCount);
 
   let firstIndex = 0;
 
@@ -620,7 +622,7 @@ function convertWedges(
     const wedge = wedges[i];
     const vinfo = vertexInfos[wedge.iVertex];
 
-    const point = points[wedge.iVertex].getVectorElements();
+    const point = points[wedge.iVertex].getElements();
     const texU = wedge.texU,
       texV = wedge.texV;
 
@@ -646,9 +648,9 @@ function convertWedges(
   return { positions, uvs, bones, weights };
 }
 
-function collectSkeleton(refSkeleton: FMeshBone[]): IBoneDecodeInfo[] {
+function collectSkeleton(refSkeleton: FMeshBone[]): GD.IBoneDecodeInfo[] {
   const boneCount = refSkeleton.length;
-  const boneInfos = new Array<IBoneDecodeInfo>(boneCount);
+  const boneInfos = new Array<GD.IBoneDecodeInfo>(boneCount);
   const boneCoords = new Array<FBoneCoord>(boneCount);
   // const matrices = [];
 
@@ -670,7 +672,7 @@ function collectSkeleton(refSkeleton: FMeshBone[]): IBoneDecodeInfo[] {
       parent: bone.parentIndex,
       position: [bonePos.x, bonePos.y, bonePos.z],
       quaternion: [boneRot.x, boneRot.y, boneRot.z, boneRot.w],
-    } as IBoneDecodeInfo;
+    } as GD.IBoneDecodeInfo;
 
     boneRot.w = -boneRot.w;
 

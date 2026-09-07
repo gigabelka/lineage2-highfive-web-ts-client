@@ -1,34 +1,25 @@
-// @ts-nocheck
-// import * as C from "node_modules/@l2js/core/index";
+// Ambient augmentation of `@l2js/core`'s `UObject`.
+//
+// `src/assets/unreal/un-object-mixin.ts` attaches `uuid` / `dumpLayout` to
+// `UObject.prototype` at runtime via `Object.defineProperty` / `Object.assign`;
+// core's own typings don't know about them.
+//
+// The `make(...)` / `class()` statics are also injected at runtime (by the
+// `onClassCreated` hook), but they land on every *subclass* individually, so they
+// are declared per-class with `declare static` where they're used (the `F*` math
+// structs in `src/assets/unreal/un-*.ts`).
+//
+// The augmentation targets the module where the class is physically declared
+// (`.../un-object`); augmenting the `@l2js/core` barrel doesn't merge because the
+// class is only re-exported from there.
 
-import type { UObject as UObject_ } from "@l2js/core/src/unreal/un-object";
+// the top-level import makes this file a module, so `declare module` below *augments*
+// the target module instead of declaring a fresh ambient one.
+import type {} from "@l2js/core";
 
-declare module "@l2js/core" {
-    abstract class UObject extends UObject_ {
-        public uuid: string;
-
-        /**
-         * Force LSP to mark all inheriting classes as needing to implement this to remind about needing to make the class itself abstract.
-         */
-        public abstract forceAbstract(): void;
-        public dumpLayout(): string;
-
-        // public load(pkg: GA.UPackage): this;
-        // public load(pkg: GA.UPackage, info: C.UExport): this;
-        // public load(pkg: GA.UPackage, info: C.PropertyTag): this;
-        // public load(pkg: GA.UPackage, info?: any): this;
-
-        // protected loadWithPropertyTag(pkg: GA.UPackage, tag: C.PropertyTag): this;
-        // protected loadWithExport(pkg: GA.UPackage, exp: C.UExport): this;
-
-        // protected preLoad(pkg: GA.UPackage, exp: C.UExport): void;
-        // protected doLoad(pkg: GA.UPackage, exp: C.UExport): void;
-        // protected postLoad(pkg: GA.UPackage, exp: C.UExport): void;
-
-        public static make<T extends UObject, K extends abstract new (...args: any[]) => T>(this: K, ...args: MakeParams<K>): InstanceType<K>;
-        public static class<T extends UObject, K extends abstract new (...args: any[]) => T>(this: K): new (...args: MakeParams<K>) => InstanceType<K>;
+declare module "@l2js/core/src/unreal/un-object" {
+    interface UObject {
+        uuid: string;
+        dumpLayout(): string;
     }
-
-    export default UObject;
-    export { UObject };
 }

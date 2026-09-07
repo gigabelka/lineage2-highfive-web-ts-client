@@ -419,7 +419,9 @@ abstract class UParticleEmitter extends UObject {
   //     return super.setProperty(tag, value);
   // }
 
-  public getDecodeInfo(builder: GD.DecodeLibraryBuilder): GD.EmitterConfig_T {
+  public getDecodeInfo(
+    builder: GD.DecodeLibraryBuilder,
+  ): GD.EmitterConfig_T | undefined {
     const library = builder.library;
 
     if (this._particles && this._particles.length > 0)
@@ -552,6 +554,9 @@ abstract class UParticleEmitter extends UObject {
               .filter((s) => s) as GD.IParticleSoundDecodeInfo[]) ?? [],
           settings: this.getSettingsSnapshot(library),
         };
+
+    // no particles / non-unit sizeScale: nothing to emit (caller filters undefined)
+    return undefined;
   }
 
   // BaseEmitter Object.assign's these onto itself. Structs serialize through their

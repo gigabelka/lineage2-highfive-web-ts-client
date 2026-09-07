@@ -5,10 +5,14 @@ import FScale from "@client/assets/unreal/un-scale";
 import FVector from "@client/assets/unreal/un-vector";
 import { UObject } from "@l2js/core";
 
-abstract class FCoords extends UObject {
+class FCoords extends UObject {
   declare public ["constructor"]: typeof FCoords;
 
   public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+  // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+  declare static readonly make: (...args: any[]) => FCoords;
+  declare static readonly class: () => typeof FCoords;
 
   declare public origin: GA.FVector;
   declare public xAxis: GA.FVector;

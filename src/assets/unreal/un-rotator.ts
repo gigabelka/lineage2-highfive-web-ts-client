@@ -14,8 +14,12 @@ enum RotName {
   ROLL, // rotation about axis of screen, 0=Straight, +Clockwise, -CCW.
 }
 
-abstract class FRotator extends UObject {
+class FRotator extends UObject {
   public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+  // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+  declare static readonly make: (...args: any[]) => FRotator;
+  declare static readonly class: () => typeof FRotator;
 
   declare public readonly pitch: number;
   declare public readonly yaw: number;

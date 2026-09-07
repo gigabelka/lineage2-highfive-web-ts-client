@@ -13,6 +13,7 @@
         "test:ui": "vitest --ui",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
+        "typecheck": "tsx tools/typecheck.ts",
         "patch-l2ini": "tsx tools/patch-l2ini.ts",
         "knip": "knip"
     },

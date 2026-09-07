@@ -22,7 +22,7 @@ abstract class USpriteEmitter extends UParticleEmitter {
   public getDecodeInfo(builder: GD.DecodeLibraryBuilder) {
     //
 
-    return Object.assign(super.getDecodeInfo(builder), {
+    return Object.assign(super.getDecodeInfo(builder)!, {
       type: "SpriteEmitter",
       spriteDirection: directionNames[this.spriteDirection],
       projectionNormal: this.projectionNormal

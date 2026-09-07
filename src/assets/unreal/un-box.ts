@@ -2,10 +2,14 @@ import FVector from "@client/assets/unreal/un-vector";
 import { UObject } from "@l2js/core";
 
 
-abstract class FBox extends UObject {
+class FBox extends UObject {
     declare ["constructor"]: typeof FBox;
 
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FBox;
+    declare static readonly class: () => typeof FBox;
 
     declare public readonly min: GA.FVector;
     declare public readonly max: GA.FVector;

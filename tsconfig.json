@@ -31,8 +31,10 @@
         "noImplicitAny": true,
         "noImplicitReturns": true,
         "noImplicitThis": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
+        // unused locals/params are left to ESLint (see eslint.config.mjs — deliberately
+        // `warn` on the RE code); keeping them as hard tsc errors made `typecheck` noise.
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
         "noFallthroughCasesInSwitch": true,
         "declaration": true,
         "emitDeclarationOnly": true,

@@ -392,7 +392,7 @@ abstract class UStaticMesh extends UPrimitive {
       // collision[offset + 8] = verts[2][2];
     }
 
-    const geometryInfo = {
+    const geometryInfo: GD.IGeometryDecodeInfo = {
       attributes: {
         positions,
         colors,
@@ -401,11 +401,13 @@ abstract class UStaticMesh extends UPrimitive {
       },
       indices,
       colliderIndices: collision,
-      groups: this.sections.map((section, index) => [
-        section.firstIndex,
-        section.numFaces * 3,
-        index,
-      ]),
+      groups: this.sections.map(
+        (section, index): GD.ArrGeometryGroup => [
+          section.firstIndex,
+          section.numFaces * 3,
+          index,
+        ],
+      ),
       bounds: this.decodeBoundsInfo(),
     };
 

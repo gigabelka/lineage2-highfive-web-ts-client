@@ -175,7 +175,7 @@ abstract class UEmitter extends UAActor {
       type: "Emitter",
       name: this.objectName,
       position: _position,
-      scale: this.scale.getElements().map((v) => v * this.drawScale) as [
+      scale: this.scale.getElements().map((v: number) => v * this.drawScale) as [
         number,
         number,
         number,

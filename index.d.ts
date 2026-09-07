@@ -16,31 +16,31 @@ declare global {
                 export type UCorePackage = import("@unreal/un-package").UCorePackage;
                 export type UEnginePackage = import("@unreal/un-package").UEnginePackage;
 
-                export type ULevel = import("@unreal/un-level").ULevel;
-                export type ULevelInfo = import("@unreal/un-level-info").ULevelInfo;
+                export type ULevel = import("@unreal/un-level").default;
+                export type ULevelInfo = import("@unreal/un-level-info").default;
 
-                export type UModel = import("@unreal/model/un-model").UModel;
-                export type UTerrainLayer = import("@unreal/un-terrain-layer").UTerrainLayer;
-                export type UTerrainSector = import("@unreal/un-terrain-sector").UTerrainSector;
+                export type UModel = import("@unreal/model/un-model").default;
+                export type UTerrainLayer = import("@unreal/un-terrain-layer").default;
+                export type UTerrainSector = import("@unreal/un-terrain-sector").default;
 
-                export type FLeaf = import("@unreal/un-leaf").FLeaf;
+                export type FLeaf = import("@unreal/un-leaf").default;
 
-                export type FVector = import("@unreal/un-vector").FVector;
-                export type FCoords = import("@unreal/un-coords").FCoords;
-                export type FRotator = import("@unreal/un-rotator").FRotator;
-                export type FQuaternion = import("@unreal/un-quaternion").FQuaternion;
+                export type FVector = import("@unreal/un-vector").default;
+                export type FCoords = import("@unreal/un-coords").default;
+                export type FRotator = import("@unreal/un-rotator").default;
+                export type FQuaternion = import("@unreal/un-quaternion").default;
                 export type FPlane = import("@unreal/un-plane").FPlane;
-                export type FBox = import("@unreal/un-box").FBox;
+                export type FBox = import("@unreal/un-box").default;
                 export type FMatrix = import("@unreal/un-matrix").FMatrix;
-                export type FColor = import("@unreal/un-color").FColor;
-                export type FScale = import("@unreal/un-scale").FScale;
-                export type FRange = import("@unreal/un-range").FRange;
+                export type FColor = import("@unreal/un-color").default;
+                export type FScale = import("@unreal/un-scale").default;
+                export type FRange = import("@unreal/un-range").default;
                 export type FRangeVector = import("@unreal/un-range").FRangeVector;
 
-                export type UPlatte = import("@unreal/un-palette").UPlatte;
-                export type UTexture = ExtendsUObject<import("@unreal/un-texture").UTexture>;
+                export type UPlatte = import("@unreal/un-palette").default;
+                export type UTexture = ExtendsUObject<import("@unreal/un-texture").default>;
 
-                export type UTextureModifyInfo = import("@unreal/un-texture-modify-info").UTextureModifyInfo;
+                export type UTextureModifyInfo = import("@unreal/un-texture-modify-info").default;
                 export type FStaticLightmapTexture = import("@unreal/model/un-multilightmap-texture").FStaticLightmapTexture;
 
                 export type NativeClientTypes_T =
@@ -60,31 +60,39 @@ declare global {
                     | "SkillVisualEffect"
                     | "SkillAction"
                     | "SkillAction_LocateEffect"
-                    | "SkillAction_SwordTrail";
+                    | "SkillAction_SwordTrail"
+                    | "ServerBlockingVolume"
+                    | "BeamEmitter"
+                    | "TexOscillatorTriggered"
+                    | "LNMovableStaticMeshActor"
+                    | "L2MovableStaticMeshActor"
+                    | "Projector"
+                    | "AntiPortalActor"
+                    | "AmbientSound";
 
-                export type USound = import("@unreal/un-sound").USound;
-                export type UAmbientSoundObject = import("@unreal/un-ambient-sound").UAmbientSoundObject;
-                export type UMusicVolume = import("@unreal/un-music-volume").UMusicVolume;
+                export type USound = import("@unreal/un-sound").default;
+                export type UAmbientSoundObject = import("@unreal/un-ambient-sound").default;
+                export type UMusicVolume = import("@unreal/un-music-volume").default;
 
-                export type UNSun = import("@unreal/un-nsun").UNSun;
-                export type UNMoon = import("@unreal/un-nmoon").UNMoon;
+                export type UNSun = import("@unreal/un-nsun").default;
+                export type UNMoon = import("@unreal/un-nmoon").default;
 
-                export type UPolys = import("@unreal/un-polys").UPolys;
+                export type UPolys = import("@unreal/un-polys").default;
                 export type PolyFlags_T = import("@unreal/un-polys").PolyFlags_T;
 
-                export type UBrush = import("@unreal/un-brush").UBrush;
+                export type UBrush = import("@unreal/un-brush").default;
 
                 export type UMaterial = import("@unreal/un-material").UMaterial;
                 export type UShader = import("@unreal/un-material").UShader;
 
-                export type AActor = import("@unreal/un-aactor").UAActor;
+                export type AActor = import("@unreal/un-aactor").default;
 
-                export type AInfo = import("@unreal/un-info").AInfo;
-                export type UL2FogInfo = import("@unreal/un-fog-info").UL2FogInfo;
-                export type FZoneInfo = import("@unreal/un-zone-info").FZoneInfo;
-                export type ATerrainInfo = import("@unreal/un-terrain-info").ATerrainInfo;
+                export type AInfo = import("@unreal/un-info").default;
+                export type UL2FogInfo = import("@unreal/un-fog-info").default;
+                export type FZoneInfo = import("@unreal/un-zone-info").default;
+                export type ATerrainInfo = import("@unreal/un-terrain-info").default;
 
-                export type UEmitter = import("@unreal/un-emitter").UEmitter;
+                export type UEmitter = import("@unreal/un-emitter").default;
 
                 export interface IUserConfig {
                     clippingRange: IClippingRangeConfig;
@@ -109,28 +117,28 @@ declare global {
                     pawnMax: number;
                 }
 
-                export type UStaticMesh = import("@unreal/static-mesh/un-static-mesh").UStaticMesh;
-                export type UStaticMeshActor = import("@unreal/static-mesh/un-static-mesh-actor").UStaticMeshActor;
-                export type UStaticMeshInstance = import("@unreal/static-mesh/un-static-mesh-instance").UStaticMeshInstance;
+                export type UStaticMesh = import("@unreal/static-mesh/un-static-mesh").default;
+                export type UStaticMeshActor = import("@unreal/static-mesh/un-static-mesh-actor").default;
+                export type UStaticMeshInstance = import("@unreal/static-mesh/un-static-mesh-instance").default;
                 export type UStaticMeshMaterial = import("@unreal/un-material").UStaticMeshMaterial;
 
-                export type USkeletalMesh = import("@unreal/skeletal-mesh/un-skeletal-mesh").USkeletalMesh;
-                export type UPawn = import("@unreal/un-pawn").UPawn;
-                export type UMeshAnimation = import("@unreal/skeletal-mesh/un-mesh-animation").UMeshAnimation;
+                export type USkeletalMesh = import("@unreal/skeletal-mesh/un-skeletal-mesh").default;
+                export type UPawn = import("@unreal/un-pawn").default;
+                export type UMeshAnimation = import("@unreal/skeletal-mesh/un-mesh-animation").default;
 
-                export type FTIntMap = import("@unreal/un-tint-map").FTIntMap;
-                export type UDecoLayer = import("@unreal/un-deco-layer").UDecoLayer;
+                export type FTIntMap = import("@unreal/un-tint-map").default;
+                export type UDecoLayer = import("@unreal/un-deco-layer").default;
 
-                export type UPointRegion = import("@unreal/un-point-region").UPointRegion;
+                export type UPointRegion = import("@unreal/un-point-region").default;
 
-                export type UPhysicsVolume = import("@unreal/un-physics-volume").UPhysicsVolume;
+                export type UPhysicsVolume = import("@unreal/un-physics-volume").default;
 
                 export type SupportedBlendingTypes_T = "normal" | "masked" | "modulate" | "alphaModulate" | "translucent" | "invisible" | "brighten" | "darken";
 
-                export type ULight = import("@unreal/un-light").ULight;
+                export type ULight = import("@unreal/un-light").default;
                 export type LightEffect_T = import("@unreal/un-light").LightEffect_T;
                 export type LightType_T = import("@unreal/un-light").LightType_T;
-                export type UNMovableSunLight = import("@unreal/un-movable-sunlight").UNMovableSunLight;
+                export type UNMovableSunLight = import("@unreal/un-movable-sunlight").default;
 
                 export type FNTimeColor = import("@unreal/un-l2env").FNTimeColor;
                 export type FNTimeHSV = import("@unreal/un-l2env").FNTimeHSV;
@@ -154,8 +162,8 @@ declare global {
                 export type EulerArr = [...Vector3Arr, EulerOrder];
                 export type ArrGeometryGroup = [number, number, number];
 
-                export type DecodeLibrary = import("@unreal/decode-library").DecodeLibrary;
-                export type DecodeLibraryBuilder = import("@unreal/decode-library-builder").DecodeLibraryBuilder;
+                export type DecodeLibrary = import("@unreal/decode-library").default;
+                export type DecodeLibraryBuilder = import("@unreal/decode-library-builder").default;
                 export type MapData_T = { texture: THREE.Texture, size: THREE.Vector2 };
 
                 export type LoadSettings_T = {
@@ -336,6 +344,7 @@ declare global {
                     acceleration: Vector3Arr,
                     lifetime: [number, number],
                     maxParticles: number,
+                    rotationOffset: QuaternionArr,
                     initial: {
                         particlesPerSecond: number,
                         scale: { min: Vector3Arr, max: Vector3Arr },

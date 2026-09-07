@@ -1,8 +1,12 @@
 import FVector from "./un-vector";
 import { UObject } from "@l2js/core";
 
-abstract class FQuaternion extends UObject {
+class FQuaternion extends UObject {
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FQuaternion;
+    declare static readonly class: () => typeof FQuaternion;
 
     declare public x: number;
     declare public y: number;

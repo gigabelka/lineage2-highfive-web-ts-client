@@ -6,8 +6,12 @@ import UObject from "@l2js/core";
 
 const eps = 1e-8;
 
-abstract class FMatrix extends UObject {
+class FMatrix extends UObject {
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FMatrix;
+    declare static readonly class: () => typeof FMatrix;
 
     declare public readonly planeX: GA.FPlane;
     declare public readonly planeY: GA.FPlane;

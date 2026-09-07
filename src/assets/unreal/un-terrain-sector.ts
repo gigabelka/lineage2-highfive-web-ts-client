@@ -39,6 +39,13 @@ class FTerrainSectorRenderPass {
   public maxIndex: number;
 }
 
+// first slot whose end-time is >= timeOfDay (times[i] is the END of interval i);
+// falls back to the last slot. See objects/terrain.ts getShadowMapIndex.
+function timeToIndex(timeOfDay: number, times: number[]): number {
+  for (let i = 0; i < times.length; i++) if (timeOfDay <= times[i]) return i;
+  return Math.max(0, times.length - 1);
+}
+
 abstract class UTerrainSector extends UObject {
   declare public boundingBox: FBox;
   declare public offsetX: number;
@@ -61,6 +68,13 @@ abstract class UTerrainSector extends UObject {
 
   declare protected shadowMaps: FPrimitiveArray<"uint8">[];
   declare protected shadowMapTimes: number[];
+
+  declare protected triangles: {
+    this: UTerrainSector;
+    vertices: Float32Array;
+    normals: Float32Array;
+    uvs: Float32Array;
+  };
 
   declare protected texInfo: FPrimitiveArray<"uint16">;
   declare protected someSectorVisibilityMask: Int16Array; // zoneVisibilityMask - 64-zone PVS mask
@@ -232,7 +246,7 @@ abstract class UTerrainSector extends UObject {
 
     const uvMultiplier = 2;
     const uvOffset = 17 * 17 * uvMultiplier;
-    const layers = info.layers.filter((x) => x);
+    const layers = info.layers.filter(Boolean);
     const layerCount = layers.length; // blended layers
     const uvs = new Float32Array(uvOffset * (layerCount + 2)); // base + blended + heightmap
 
@@ -749,8 +763,10 @@ abstract class UTerrainSector extends UObject {
       }
 
       return true;
-    } else {
     }
+
+    // non-AlphaMap combinations always render the triangle
+    return true;
   }
 
   protected isTriangleAll(

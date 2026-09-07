@@ -1,9 +1,13 @@
 import { APackage, UExport, UObject } from "@l2js/core";
 
-abstract class FColor extends UObject {
+class FColor extends UObject {
     declare public ["constructor"]: typeof FColor;
 
     public static readonly plainStructFields = true; // values live in fields, not propertyDict (see UObject.loadNative)
+
+    // injected onto every UObject subclass at runtime by `onClassCreated` in un-object-mixin.ts
+    declare static readonly make: (...args: any[]) => FColor;
+    declare static readonly class: () => typeof FColor;
 
     declare public r: number;
     declare public g: number;

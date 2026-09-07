@@ -79,7 +79,7 @@ abstract class UBeamEmitter extends UParticleEmitter {
             relativeLength: f.relativeLength ?? 0
         }));
 
-        return Object.assign(super.getDecodeInfo(builder), {
+        return Object.assign(super.getDecodeInfo(builder)!, {
             type: "BeamEmitter",
             texture: builder.pullMaterial(this.texture),
             beam: {

@@ -150,7 +150,7 @@ abstract class UTexture extends UMaterial {
         }
     }
 
-    protected decodeTexture(library: GD.DecodeLibrary) {
+    protected decodeTexture(library: GD.DecodeLibrary): GD.ITextureDecodeInfo | GD.IBaseMaterialDecodeInfo {
         const totalMipCount = this.mipmaps.length;
 
         if (totalMipCount === 0) return { materialType: "empty" };
@@ -324,7 +324,7 @@ abstract class UTexture extends UMaterial {
             let tex: UTexture = this;
 
             for (let i = 0, len = this.totalFrameNum; i < len && tex; i++) {
-                sprites.push(tex.loadSelf().decodeTexture(builder.library));
+                sprites.push(tex.loadSelf().decodeTexture(builder.library) as GD.ITextureDecodeInfo);
                 tex = tex.animNext;
             }
 
