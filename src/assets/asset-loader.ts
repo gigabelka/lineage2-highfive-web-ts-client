@@ -62,12 +62,25 @@ class AssetLoader extends AAssetLoader<
       ? [impType, ...AssetLoader.PROBE_IMP_TYPES]
       : AssetLoader.PROBE_IMP_TYPES;
 
-    for (const t of tries) {
-      try {
-        const p = super.getPackage(pkgName as any, t) as unknown as C.APackage;
-        if (p) return p;
-      } catch {
-        /* unknown impType or unregistered package name - keep probing */
+    /*
+     * Some original C4 texture/mesh packages (e.g. Oren_DEV_T.utx) carry a self-package
+     * import whose name has a trailing underscore baked in at cook time ("Oren_DEV_T_"),
+     * with no matching file. Fall back to the trimmed name so the self-reference resolves
+     * to the package itself instead of throwing "does not exist".
+     */
+    const names =
+      /_+$/.test(pkgName) && pkgName.replace(/_+$/, "").length > 0
+        ? [pkgName, pkgName.replace(/_+$/, "")]
+        : [pkgName];
+
+    for (const name of names) {
+      for (const t of tries) {
+        try {
+          const p = super.getPackage(name as any, t) as unknown as C.APackage;
+          if (p) return p;
+        } catch {
+          /* unknown impType or unregistered package name - keep probing */
+        }
       }
     }
 

@@ -446,22 +446,24 @@ abstract class UTerrainSector extends UObject {
 
       this.hasShadows = hasShadows !== 0;
 
-      if (hasShadows !== 0 && hasShadows !== 1)
-        if (this.hasShadows && this.info) {
-          this.shadowCount = pkg.read("int32");
-          this.shadowMaps = new Array<FPrimitiveArray<"uint8">>(
-            this.shadowCount,
-          );
-          this.shadowMapTimes = new Array<number>(this.shadowCount);
+      // was `if (hasShadows !== 0 && hasShadows !== 1)` - that skipped the shadow
+      // block for the *normal* hasShadows === 1 case, leaving the read cursor
+      // 8 * (2 + 17*17) + N bytes short and every later array count garbage.
+      if (this.hasShadows && this.info) {
+        this.shadowCount = pkg.read("int32");
+        this.shadowMaps = new Array<FPrimitiveArray<"uint8">>(
+          this.shadowCount,
+        );
+        this.shadowMapTimes = new Array<number>(this.shadowCount);
 
-          for (let i = 0; i < this.shadowCount; i++) {
-            this.shadowMaps[i] = new FPrimitiveArray(BufferValue.uint8).load(
-              pkg,
-            );
-            this.shadowMapTimes[i] =
-              (i * 24) / this.shadowCount + 12 / this.shadowCount;
-          }
+        for (let i = 0; i < this.shadowCount; i++) {
+          this.shadowMaps[i] = new FPrimitiveArray(BufferValue.uint8).load(
+            pkg,
+          );
+          this.shadowMapTimes[i] =
+            (i * 24) / this.shadowCount + 12 / this.shadowCount;
         }
+      }
     }
 
     this.someSectorVisibilityMask = new Int16Array(32);
