@@ -79,6 +79,56 @@ async function handleMessage(msg: MainToWorkerMessage) {
             }
             break;
         }
+        case "decodeCharacter": {
+            try {
+                const buffer = await engine.decodeCharacterBinary(msg.settings, msg.charIndex, msg.faceVariant, msg.hairVariant, msg.hairColour, msg.armor, msg.includeAnimations);
+
+                post({ type: "decoded", requestId: msg.requestId, buffer }, [buffer]);
+            } catch (e) {
+                console.error(`[decode-worker] failed to decode character group '${msg.charIndex}':`, e);
+                post({ type: "decodeError", requestId: msg.requestId, message: (e as Error)?.message ?? String(e), stack: (e as Error)?.stack });
+            }
+            break;
+        }
+        case "decodeSkeletalMesh": {
+            try {
+                const buffer = await engine.decodeSkeletalMeshBinary(msg.settings, msg.packageName, msg.meshName, msg.scriptClassPath, msg.texturePaths, msg.npcId, msg.includeAnimations);
+
+                post({ type: "decoded", requestId: msg.requestId, buffer }, [buffer]);
+            } catch (e) {
+                console.error(`[decode-worker] failed to decode skeletal mesh '${msg.packageName}.${msg.meshName}':`, e);
+                post({ type: "decodeError", requestId: msg.requestId, message: (e as Error)?.message ?? String(e), stack: (e as Error)?.stack });
+            }
+            break;
+        }
+        case "charGroups": {
+            try {
+                post({ type: "charGroupsDecoded", requestId: msg.requestId, groups: await engine.decodeCharGroups() });
+            } catch (e) {
+                console.error("[decode-worker] failed to decode character groups:", e);
+                post({ type: "decodeError", requestId: msg.requestId, message: (e as Error)?.message ?? String(e), stack: (e as Error)?.stack });
+            }
+            break;
+        }
+        case "precacheCharacters": {
+            try {
+                await engine.precacheCharacters(msg.settings);
+                post({ type: "charactersPrecached", requestId: msg.requestId });
+            } catch (e) {
+                console.error("[decode-worker] failed to precache characters:", e);
+                post({ type: "decodeError", requestId: msg.requestId, message: (e as Error)?.message ?? String(e), stack: (e as Error)?.stack });
+            }
+            break;
+        }
+        case "clientConfig": {
+            try {
+                post({ type: "clientConfigDecoded", requestId: msg.requestId, config: await engine.decodeClientConfig() });
+            } catch (e) {
+                console.error("[decode-worker] failed to decode client config:", e);
+                post({ type: "decodeError", requestId: msg.requestId, message: (e as Error)?.message ?? String(e), stack: (e as Error)?.stack });
+            }
+            break;
+        }
     }
 }
 

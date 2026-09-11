@@ -69,6 +69,7 @@ import UPawn from "@client/assets/unreal/un-pawn";
 import USkeletalMesh from "@client/assets/unreal/skeletal-mesh/un-skeletal-mesh";
 import USkeletalMeshInstance from "@client/assets/unreal/un-skeletal-mesh-instance";
 import UMeshAnimation from "@client/assets/unreal/skeletal-mesh/un-mesh-animation";
+import * as AnimNotify from "@client/assets/unreal/skeletal-mesh/un-anim-notify";
 
 type CoreStructs_T = "Vector" | "Plane" | "Box" | "Matrix" | "Color" | "Coords";
 
@@ -278,6 +279,27 @@ class UEnginePackage extends UPackage implements C.IEnginePackage {
       "ConvexVolume",
     );
     addClassDependency(nameTable, nameHash, imports, exports, "Native", "Mesh");
+    /* HighFive's Engine.u carries no export for the native LodMesh/SkeletalMesh
+       classes (unlike C4's), so the class dependency has to be synthesized here -
+       same as Mesh/StaticMesh above. Without these two, every SkeletalMesh export
+       in a .ukx fails its idClass lookup with
+       "(Engine) [Class, SkeletalMesh, None] should not be null". */
+    addClassDependency(
+      nameTable,
+      nameHash,
+      imports,
+      exports,
+      "Native",
+      "LodMesh",
+    );
+    addClassDependency(
+      nameTable,
+      nameHash,
+      imports,
+      exports,
+      "Native",
+      "SkeletalMesh",
+    );
     addClassDependency(
       nameTable,
       nameHash,
@@ -728,14 +750,18 @@ class UNativePackage extends ANativePackage {
         Constructor = UL2FogInfo;
         break;
 
-      // Classes we don't care about atm are marked as UObject for general puprose constructor
+      /*
+       * Classes we don't care about atm are marked as UObject for general puprose
+       * constructor. `LineagePlayerController` has no worker-side class either - the
+       * controller is a client-side script host (src/objects/lineage-player-controller.ts),
+       * only its export-table entry is needed here.
+       */
       case "L2SeamlessInfo":
       case "SceneManager":
       case "PathNode":
       case "InterpolationPoint":
       case "Projector":
       case "AntiPortalActor":
-      case "Pawn":
       case "LineagePlayerController":
       case "AmbientSound":
       case "SkillVisualEffect":
@@ -743,6 +769,62 @@ class UNativePackage extends ANativePackage {
       case "SkillAction_LocateEffect":
       case "SkillAction_SwordTrail":
         Constructor = UObject;
+        break;
+
+      case "Pawn":
+        Constructor = UPawn;
+        break;
+
+      case "AnimNotify":
+        Constructor = AnimNotify.UAnimNotify;
+        break;
+      case "AnimNotify_IdleSound":
+        Constructor = AnimNotify.UAnimNotifyIdleSound;
+        break;
+      case "AnimNotify_MatSubAction":
+        Constructor = AnimNotify.UAnimNotifyMatSubAction;
+        break;
+      case "AnimNotify_Scripted":
+        Constructor = AnimNotify.UAnimNotifyScripted;
+        break;
+      case "AnimNotify_Script":
+        Constructor = AnimNotify.UAnimNotifyScript;
+        break;
+      case "AnimNotify_Sound":
+        Constructor = AnimNotify.UAnimNotifySound;
+        break;
+      case "AnimNotify_SwimSound":
+        Constructor = AnimNotify.UAnimNotifySwimSound;
+        break;
+      case "AnimNotify_DestroyEffect":
+        Constructor = AnimNotify.UAnimNotifyDestroyEffect;
+        break;
+      case "AnimNotify_Effect":
+        Constructor = AnimNotify.UAnimNotifyEffect;
+        break;
+      case "AnimNotify_AttackVoice":
+        Constructor = AnimNotify.UAnimNotifyAttackVoice;
+        break;
+      case "AnimNotify_Channeling":
+        Constructor = AnimNotify.UAnimNotifyChanneling;
+        break;
+      case "AnimNotify_AttackPreShot":
+        Constructor = AnimNotify.UAnimNotifyAttackPreShot;
+        break;
+      case "AnimNotify_AttackShot":
+        Constructor = AnimNotify.UAnimNotifyAttackShot;
+        break;
+      case "AnimNotify_AttackItem":
+        Constructor = AnimNotify.UAnimNotifyAttackItem;
+        break;
+      case "AnimNotify_ScreenFade":
+        Constructor = AnimNotify.UAnimNotifyScreenFade;
+        break;
+      case "AnimNotify_ViewShake":
+        Constructor = AnimNotify.UAnimNotifyViewShake;
+        break;
+      case "AnimNotify_BoneScale":
+        Constructor = AnimNotify.UAnimNotifyBoneScale;
         break;
 
       default: // objects that we never saw before

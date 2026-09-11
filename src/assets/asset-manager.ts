@@ -2,6 +2,7 @@ import RenderManager from "@client/rendering/render-manager";
 import { WebGLCapabilities } from "three/src/renderers/webgl/WebGLCapabilities.js";
 import {
   createSectorStaticMeshDecodeJob,
+  decodeObject3D,
   decodePackage,
   decodeSectorCore,
   stepSectorStaticMeshDecodeJob,
@@ -10,10 +11,12 @@ import {
 import decodeEnv from "@client/assets/decoders/env-decoder";
 import DecodeWorkerClient from "@client/assets/decode-worker/decode-worker-client";
 import { getUserConfig } from "@unreal/conf-files/un-conf-system";
-import { Vector3 } from "three";
+import { AnimationClip, Matrix4, SkinnedMesh, Vector3 } from "three";
 import type { SectorObject } from "@client/objects/zone-object";
+import type BaseActor from "@client/base-actor";
 
 const tmpCameraPosition = new Vector3();
+const tmpAttachMatrix = new Matrix4();
 
 const FAILED_SECTOR_RETRY_MS = 30_000;
 const RETIRED_SECTOR_DISPOSE_MS = 30_000;
@@ -21,9 +24,81 @@ const SECTOR_WORLD_SIZE = 256 * 128;
 const SECTOR_PREFETCH_LOOKAHEAD_MS = 1500;
 const SECTOR_PREFETCH_MAX_DISTANCE = SECTOR_WORLD_SIZE;
 const STATIC_MESH_BUILD_FRAME_MS = 2;
+const BIND_POSE_EPSILON = 1e-3;
+const DEFAULT_CHAR_INDEX = 1;
 
 const tmpPrefetchPosition = new Vector3();
 const tmpCameraMovement = new Vector3();
+
+/**
+ * Structural stand-ins for the donor's `@l2js/engine/contracts/pawn` /
+ * `contracts/config` types.
+ *
+ * TODO(Phase 3 decode workstream): main has no such contracts yet - `ICharacterGroup`,
+ * `ICharacterArmorSelection` and `WarriorAnimations_T` arrive with the character/NPC decode and
+ * config transport. These locals carry exactly the fields this file reads, so the real types can
+ * replace them without touching the call sites.
+ */
+type CharacterArmorSelection_T = {
+  chest: number;
+  legs: number;
+  gloves: number;
+  boots: number;
+};
+
+type CharacterGroup_T = {
+  index: number;
+  name: string;
+};
+
+/** `decodeCharacter`'s own default: bare body, no armour pieces selected. */
+const DEFAULT_ARMOR_SELECTION: CharacterArmorSelection_T = {
+  chest: 0,
+  legs: 0,
+  gloves: 0,
+  boots: 0,
+};
+
+type WarriorAnimations_T = {
+  wait: string;
+  walk: string;
+  run: string;
+  death: string;
+  falling: string;
+  swim: string;
+  swimWait: string;
+};
+
+/**
+ * --- character / skeletal-actor decode seam -----------------------------------------------
+ *
+ * Four `DecodeWorkerClient` RPCs belong to the concurrent decode workstream's transport work:
+ *
+ *   decodeCharacter(settings, charIndex, faceVariant, hairVariant, hairColour, armor): Promise<GD.DecodeLibrary>
+ *   decodeSkeletalMesh(settings, packageName, meshName, scriptClassPath, texturePaths, npcId): Promise<GD.DecodeLibrary>
+ *   getClientConfig(): { userConfig, warriorAnimations }   (class -> clip names, alongside the existing
+ *                                                          sector-scoped `getUserConfig()`)
+ *   getCharGroups(): CharacterGroup_T[]
+ *
+ * None of them exists on the client today, so every call is funnelled through the class's
+ * `decodeCharacterLibrary` / `decodeSkeletalMeshLibrary` / `getCharGroups` / `loadCharacterConfig`
+ * shims below - each guards on the method actually being there and reports exactly what is missing
+ * instead of dying on `undefined is not a function`. When the RPCs land, drop the guard arguments (or
+ * keep the shims as the one place that knows the argument order).
+ */
+function requireWorkerMethod<F extends (...args: any[]) => any>(
+  client: DecodeWorkerClient,
+  name: string,
+): F {
+  const method = (client as any)[name] as F;
+
+  if (typeof method !== "function")
+    throw new Error(
+      `DecodeWorkerClient.${name}() is not implemented yet (Phase 3 decode workstream).`,
+    );
+
+  return method;
+}
 
 type PendingStaticMeshBuild_T = {
   sector: SectorObject;
@@ -53,6 +128,10 @@ class AssetManager {
   protected readonly levelSectors = new Set<string>(); // sector ids that have a level package
   protected preferCompressedTextures = false; // resolved from loadSettings.textures + gpu caps
   public userConfig: GA.IUserConfig = null;
+  /** `assets/system/lineagewarrior.int` clip names per character class; filled by `loadCharacterConfig`. */
+  protected warriorAnimations: Record<string, WarriorAnimations_T> = null;
+  /** Character groups (group/face/hair/armour options) the Phase 8 GUI will build `loadCharacter` from. */
+  protected charGroups: CharacterGroup_T[] = null;
   protected readonly decodeWorkerPoolSize: number;
   protected readonly maxConcurrentDecodes: number; // 0 = main thread, still processes one decode at a time
   protected readonly lastCameraPosition = new Vector3();
@@ -108,6 +187,11 @@ class AssetManager {
 
     this.userConfig = await getUserConfig();
 
+    /* Character-class config rides the same transport as the sector pipeline. Until the decode
+       workstream lands its RPCs the character load path stays unavailable and says so - this must
+       never block boot, hence the swallowed error below (see decodeCharacterLibrary's message). */
+    await this.loadCharacterConfig();
+
     /* everything below comes out of the decode worker - the app cannot run without it */
     this.decodeWorker = new DecodeWorkerClient(this.decodeWorkerPoolSize);
     await this.decodeWorker.ready;
@@ -134,6 +218,286 @@ class AssetManager {
     renderManager.setEnv(decodeEnv(envInfo));
     renderManager.setSky(decodePackage(skyLibrary));
     renderManager.audioManager.setMusicInfo(musicInfo);
+
+    /*
+     * The player pawn's body. Today this lands in the catch below with the seam's message (the
+     * character decode RPCs are still landing on the decode side), which is deliberately non-fatal:
+     * the world still streams without a character. Once `decodeCharacter` exists this becomes the
+     * whole character path with no further wiring; a deliberate character swap (Phase 8 GUI) goes
+     * through the public `loadCharacter` instead.
+     */
+    if (this.loadSettings.loadCharacter) {
+      try {
+        await this.loadCharacter(
+          renderManager,
+          DEFAULT_CHAR_INDEX,
+          0,
+          0,
+          0,
+          DEFAULT_ARMOR_SELECTION,
+        );
+      } catch (e) {
+        console.warn(
+          `[character] player body not loaded: ${(e as Error).message}`,
+        );
+      }
+    }
+  }
+
+  // --- character / skeletal actor (non-sector-scoped, see the decode seam note above) --------
+
+  protected async loadCharacterConfig(): Promise<void> {
+    try {
+      const [clientConfig, charGroups] = await Promise.all([
+        this.getClientConfig(),
+        this.getCharGroups(),
+      ]);
+
+      this.warriorAnimations = clientConfig?.warriorAnimations ?? null;
+      this.charGroups = charGroups ?? null;
+    } catch (e) {
+      console.warn(`[character] client config unavailable: ${(e as Error).message}`);
+    }
+  }
+
+  public async getCharGroups(): Promise<CharacterGroup_T[]> {
+    const getCharGroups = requireWorkerMethod<
+      () => Promise<CharacterGroup_T[]>
+    >(this.decodeWorker, "getCharGroups");
+
+    return getCharGroups.call(this.decodeWorker);
+  }
+
+  protected async getClientConfig(): Promise<{
+    userConfig?: GA.IUserConfig;
+    warriorAnimations?: Record<string, WarriorAnimations_T>;
+  }> {
+    const getClientConfig = requireWorkerMethod<() => Promise<any>>(
+      this.decodeWorker,
+      "getClientConfig",
+    );
+
+    return getClientConfig.call(this.decodeWorker);
+  }
+
+  /** `DecodeWorkerClient.decodeCharacter` - see the seam note above. */
+  protected async decodeCharacterLibrary(
+    charIndex: number,
+    faceVariant: number,
+    hairVariant: number,
+    hairColour: number,
+    armor: CharacterArmorSelection_T,
+  ): Promise<GD.DecodeLibrary> {
+    const decode = requireWorkerMethod<(...args: any[]) => Promise<GD.DecodeLibrary>>(
+      this.decodeWorker,
+      "decodeCharacter",
+    );
+
+    return decode.call(
+      this.decodeWorker,
+      this.loadSettings,
+      charIndex,
+      faceVariant,
+      hairVariant,
+      hairColour,
+      armor,
+    );
+  }
+
+  /** `DecodeWorkerClient.decodeSkeletalMesh` - see the seam note above. */
+  protected async decodeSkeletalMeshLibrary(
+    packageName: string,
+    meshName: string,
+    scriptClassPath: string,
+    texturePaths: string[],
+    npcId: number,
+  ): Promise<GD.DecodeLibrary> {
+    const decode = requireWorkerMethod<(...args: any[]) => Promise<GD.DecodeLibrary>>(
+      this.decodeWorker,
+      "decodeSkeletalMesh",
+    );
+
+    return decode.call(
+      this.decodeWorker,
+      this.loadSettings,
+      packageName,
+      meshName,
+      scriptClassPath,
+      texturePaths,
+      npcId,
+    );
+  }
+
+  /**
+   * Builds one playable character out of its decoded body parts and hands the result to `actor`
+   * (the player by default). The parts share one skeleton where their bind poses match and the hair
+   * chains hang off the head bone; the AnimationComponent then drives only the parts that own a bone
+   * tree (`sharesSkeleton` / `isBoneAttachment` are skipped by `AnimationComponent.play`).
+   */
+  protected applyCharacter(
+    renderManager: RenderManager,
+    characterLibrary: GD.DecodeLibrary,
+    actor?: BaseActor,
+    charIndex: number = DEFAULT_CHAR_INDEX,
+  ): void {
+    characterLibrary.anisotropy = this.glCapabilities.getMaxAnisotropy();
+    (characterLibrary as any).preferCompressedTextures =
+      this.preferCompressedTextures;
+
+    const bodyparts = characterLibrary.pawnActors.map(
+      (info) => decodeObject3D(characterLibrary, info) as SkinnedMesh,
+    );
+    const animations = (bodyparts[0] as any).meshAnimations as Record<
+      string,
+      AnimationClip
+    >;
+    const player = actor || renderManager.player;
+
+    if (!animations)
+      throw new Error(`'${characterLibrary.name}' animations failed to decode.`);
+
+    /* resolved before the body-part surgery below, so a missing character config fails before the
+       parts are re-parented onto someone else's skeleton */
+    const declared = this.getWarriorAnimations(charIndex);
+
+    shareSkeletons(bodyparts);
+    attachLooseBoneChains(bodyparts);
+
+    /* The donor's `setPawnComponents()` call sits here; main attaches AnimationComponent and
+       PawnRenderableComponent from `BaseActor`'s own constructor (guarded by findComponent, so the
+       Phase 5-7 sound/effects/transform/npcLifecycle additions can use the same pattern). */
+    player.setAnimations(animations);
+    player.setIdleAnimation(findAnimation(animations, declared.wait));
+    player.setWalkingAnimation(findAnimation(animations, declared.walk));
+    player.setRunningAnimation(findAnimation(animations, declared.run));
+    player.setDeathAnimation(findAnimation(animations, declared.death));
+    player.setFallingAnimation(findAnimation(animations, declared.falling));
+    player.setSwimmingAnimation(findAnimation(animations, declared.swim));
+    player.setSwimmingIdleAnimation(findAnimation(animations, declared.swimWait));
+    player.setMeshes(bodyparts);
+    player.initAnimations();
+  }
+
+  /**
+   * Rebuilds the player pawn's body from a character-class selection. Non-sector-scoped: unlike
+   * `requestSector`, nothing here is keyed by a level sector or owned by the streaming lifetime.
+   */
+  public async loadCharacter(
+    renderManager: RenderManager,
+    charIndex: number,
+    faceVariant: number,
+    hairVariant: number,
+    hairColour: number,
+    armor: CharacterArmorSelection_T,
+    actor?: BaseActor,
+  ): Promise<void> {
+    this.applyCharacter(
+      renderManager,
+      await this.decodeCharacterLibrary(
+        charIndex,
+        faceVariant,
+        hairVariant,
+        hairColour,
+        armor,
+      ),
+      actor,
+      charIndex,
+    );
+
+    renderManager.needsUpdate = true;
+  }
+
+  /**
+   * Loads one skeletal mesh out of a package and wires it onto `actor` (an NPC, or actor-less for
+   * props). Same non-sector-scoped contract as `loadCharacter`.
+   *
+   * The script half of the donor's version - `setScriptRuntime(new UnScriptVM(...))`, the effect
+   * template object factory, `applyScriptLocalization` and `setDeathAnimationFromScript` - needs the
+   * UnrealScript VM and lands in Phase 4. `scriptClassPath` is still forwarded to the decode RPC so
+   * the returned library carries the script class that Phase 4 will bind.
+   */
+  public async loadSkeletalActor(
+    renderManager: RenderManager,
+    packageName: string,
+    meshName: string,
+    idleAnimation: string,
+    actor: BaseActor,
+    scriptClassPath: string = null,
+    texturePaths: string[] = [],
+    npcId: number = null,
+    enterAnimation: string = null,
+  ): Promise<GD.DecodeLibrary> {
+    const library = await this.decodeSkeletalMeshLibrary(
+      packageName,
+      meshName,
+      scriptClassPath,
+      texturePaths,
+      npcId,
+    );
+
+    library.anisotropy = this.glCapabilities.getMaxAnisotropy();
+    (library as any).preferCompressedTextures = this.preferCompressedTextures;
+
+    const meshes = library.pawnActors.map(
+      (info) => decodeObject3D(library, info) as SkinnedMesh,
+    );
+    const animations = (meshes[0] as any).meshAnimations as Record<
+      string,
+      AnimationClip
+    >;
+
+    if (!animations)
+      throw new Error(`'${library.name}' animations failed to decode.`);
+
+    /* meshes with no usable clips still need placeholder entries so every movement state resolves */
+    if (Object.keys(animations).length === 0) {
+      animations[idleAnimation] = new AnimationClip(idleAnimation, 0, []);
+
+      if (enterAnimation && enterAnimation.toLowerCase() !== "none")
+        animations[enterAnimation] = new AnimationClip(enterAnimation, 0, []);
+    }
+
+    const idle = findNpcIdleAnimation(animations, idleAnimation);
+
+    actor.setAnimations(animations);
+    actor.setIdleAnimation(idle);
+    actor.setWalkingAnimation(findNpcMovementAnimation(animations, "walk", idle));
+    actor.setRunningAnimation(findNpcMovementAnimation(animations, "run", idle));
+    actor.setDeathAnimation(idle);
+    actor.setFallingAnimation(idle);
+    actor.setSwimmingAnimation(idle);
+    actor.setSwimmingIdleAnimation(idle);
+    actor.setMeshes(meshes);
+    actor.initAnimations();
+
+    renderManager.needsUpdate = true;
+
+    return library;
+  }
+
+  protected getWarriorAnimations(charIndex: number): WarriorAnimations_T {
+    if (!this.warriorAnimations || !this.charGroups)
+      throw new Error(
+        "Character config is not loaded - DecodeWorkerClient.getClientConfig()/getCharGroups() are part of the concurrent Phase 3 decode workstream.",
+      );
+
+    const className = this.getClassName(charIndex).toLowerCase();
+    const declared = this.warriorAnimations[className];
+
+    if (!declared)
+      throw new Error(
+        `'assets/system/lineagewarrior.int' has no '${className}' class.`,
+      );
+
+    return declared;
+  }
+
+  protected getClassName(charIndex: number): string {
+    const group = this.charGroups.find((group) => group.index === charIndex);
+
+    if (!group) throw new Error(`No character group for index ${charIndex}.`);
+
+    return group.name;
   }
 
   public async setAlwaysLoaded(
@@ -437,6 +801,152 @@ class AssetManager {
 }
 
 export default AssetManager;
+
+// --- character body-part assembly -----------------------------------------------------------
+
+function isHeadBone(name: string) {
+  return /^bip01[ _]head$/i.test(name);
+}
+
+// system/lineagewarrior.int clip names are case-insensitive against package names.
+function findAnimation(
+  animations: Record<string, AnimationClip>,
+  declared: string,
+): string {
+  const match = declared.toLowerCase();
+  const name = Object.keys(animations).find(
+    (name) => name.toLowerCase() === match,
+  );
+
+  if (!name) throw new Error(`Character has no '${declared}' animation.`);
+
+  return name;
+}
+
+function findNpcIdleAnimation(
+  animations: Record<string, AnimationClip>,
+  declared: string,
+): string {
+  const names = Object.keys(animations);
+  const match = declared.toLowerCase();
+  const name =
+    names.find((name) => name.toLowerCase() === match) ||
+    names.find((name) => /^wait(?:_|$)/i.test(name)) ||
+    names.find((name) => /^spwait/i.test(name)) ||
+    names[0];
+
+  if (!name) throw new Error(`NPC has no '${declared}' animation.`);
+
+  return name;
+}
+
+function findNpcMovementAnimation(
+  animations: Record<string, AnimationClip>,
+  movement: string,
+  idle: string,
+): string {
+  const names = Object.keys(animations);
+  const index = idle.indexOf("_");
+  const suffix = index < 0 ? "" : idle.slice(index);
+  const match = `${movement}${suffix}`.toLowerCase();
+
+  return (
+    names.find((name) => name.toLowerCase() === match) ||
+    names.find((name) => new RegExp(`^${movement}(?:_|$)`, "i").test(name)) ||
+    idle
+  );
+}
+
+/**
+ * One skeleton per character where the bind poses match: the part that carries the head bone holds
+ * it, every other part is re-bound to it and flagged so `AnimationComponent.play` skips it (a single
+ * action then drives the whole body). The skipped part's own bone chain is detached - the host's
+ * bones drive its skinning.
+ */
+function shareSkeletons(bodyparts: SkinnedMesh[]) {
+  const host = bodyparts.find((part) =>
+    part.skeleton.bones.some((bone) => isHeadBone(bone.name)),
+  );
+
+  if (!host)
+    throw new Error(
+      `Character has no bodypart carrying a head bone to share its skeleton from.`,
+    );
+
+  for (const part of bodyparts) {
+    if (part === host || !isSameBindPose(host, part)) continue;
+
+    part.remove(part.skeleton.bones[0]);
+    part.bind(host.skeleton, part.bindMatrix);
+
+    (part as any).sharesSkeleton = true;
+  }
+}
+
+function isSameBindPose(host: SkinnedMesh, part: SkinnedMesh): boolean {
+  const hostSkeleton = host.skeleton,
+    partSkeleton = part.skeleton;
+
+  if (hostSkeleton.bones.length !== partSkeleton.bones.length) return false;
+  if (host.position.distanceTo(part.position) > BIND_POSE_EPSILON) return false;
+  if (host.scale.distanceTo(part.scale) > BIND_POSE_EPSILON) return false;
+  if (Math.abs(host.quaternion.dot(part.quaternion)) < 1 - BIND_POSE_EPSILON)
+    return false;
+
+  for (let i = 0, len = hostSkeleton.bones.length; i < len; i++) {
+    if (hostSkeleton.bones[i].name !== partSkeleton.bones[i].name) return false;
+
+    const hostInverse = hostSkeleton.boneInverses[i].elements,
+      partInverse = partSkeleton.boneInverses[i].elements;
+
+    for (let j = 0; j < 16; j++)
+      if (Math.abs(hostInverse[j] - partInverse[j]) > BIND_POSE_EPSILON)
+        return false;
+  }
+
+  return true;
+}
+
+/**
+ * Hair meshes (ab/bh parts) carry their own loose bone chain rather than sharing the body skeleton.
+ * Reparent that chain's root under the host's head bone, baking the offset into its local transform,
+ * and flag the part so `AnimationComponent.play` leaves it alone - its chain rides the head bone and
+ * its own `LocalSpaceSkeleton` poses it in attached mode.
+ */
+function attachLooseBoneChains(bodyparts: SkinnedMesh[]) {
+  const host = bodyparts.find((part) =>
+    part.skeleton.bones.some((bone) => isHeadBone(bone.name)),
+  );
+
+  if (!host)
+    throw new Error(
+      `Character has no bodypart carrying a head bone to attach its hair to.`,
+    );
+
+  const headBone = host.skeleton.bones.find((bone) => isHeadBone(bone.name));
+
+  host.updateMatrixWorld(true);
+
+  for (const part of bodyparts) {
+    if (
+      part === host ||
+      !/(?:^|_)(?:ah|bh)$/i.test(part.name) ||
+      part.skeleton.bones.some((bone) => isHeadBone(bone.name))
+    )
+      continue;
+
+    const root = part.skeleton.bones[0];
+
+    part.updateMatrixWorld(true);
+
+    tmpAttachMatrix.copy(headBone.matrixWorld).invert().multiply(root.matrixWorld);
+    tmpAttachMatrix.decompose(root.position, root.quaternion, root.scale);
+
+    headBone.add(root);
+
+    (part as any).isBoneAttachment = true;
+  }
+}
 
 /**
  * Distance from the camera to a sector's bounds (0 inside it), using the same

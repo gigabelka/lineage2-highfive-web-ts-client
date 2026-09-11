@@ -33,7 +33,51 @@ interface MusicInfoMessage {
     requestId: number;
 }
 
-type MainToWorkerMessage = InitMessage | DecodeMessage | PrecacheMessage_T | FreeMessage | DecodeEnvMessage | MusicInfoMessage;
+/* character/NPC packages are NOT sector-scoped: they must always route to the same pool
+   worker, see DecodeWorkerClient.characterWorkerIndex */
+interface DecodeCharacterMessage {
+    type: "decodeCharacter";
+    requestId: number;
+    settings: GD.LoadSettings_T;
+    charIndex: number;
+    faceVariant: number;
+    hairVariant: number;
+    hairColour: number;
+    armor: GD.ICharacterArmorSelection;
+    includeAnimations: boolean;
+}
+
+interface DecodeSkeletalMeshMessage {
+    type: "decodeSkeletalMesh";
+    requestId: number;
+    settings: GD.LoadSettings_T;
+    packageName: string;
+    meshName: string;
+    /* script-bound meshes need the UnrealScript class graph (Phase 4) */
+    scriptClassPath: string;
+    texturePaths: string[];
+    /* non-null selects the NPC pipeline (Phase 5) */
+    npcId: number | null;
+    includeAnimations: boolean;
+}
+
+interface CharGroupsMessage {
+    type: "charGroups";
+    requestId: number;
+}
+
+interface PrecacheCharactersMessage {
+    type: "precacheCharacters";
+    requestId: number;
+    settings: GD.LoadSettings_T;
+}
+
+interface ClientConfigMessage {
+    type: "clientConfig";
+    requestId: number;
+}
+
+type MainToWorkerMessage = InitMessage | DecodeMessage | PrecacheMessage_T | FreeMessage | DecodeEnvMessage | MusicInfoMessage | DecodeCharacterMessage | DecodeSkeletalMeshMessage | CharGroupsMessage | PrecacheCharactersMessage | ClientConfigMessage;
 
 interface ReadyMessage {
     type: "ready";
@@ -77,6 +121,28 @@ interface MusicInfoDecodedMessage {
     music: Record<number, string[]>; // music id -> package paths
 }
 
-type WorkerToMainMessage = ReadyMessage | InitErrorMessage | DecodedMessage | PrecachedMessage_T | DecodeErrorMessage | EnvDecodedMessage | MusicInfoDecodedMessage;
+interface CharGroupsDecodedMessage {
+    type: "charGroupsDecoded";
+    requestId: number;
+    groups: GD.ICharacterGroup[];
+}
 
-export type { MainToWorkerMessage, WorkerToMainMessage, InitMessage, DecodeMessage, PrecacheMessage_T, PrecacheResult_T, PrecachedMessage_T, FreeMessage, DecodeEnvMessage, MusicInfoMessage, ReadyMessage, InitErrorMessage, DecodedMessage, DecodeErrorMessage, EnvDecodedMessage, MusicInfoDecodedMessage };
+interface CharactersPrecachedMessage {
+    type: "charactersPrecached";
+    requestId: number;
+}
+
+interface ClientConfig_T {
+    userConfig: GA.IUserConfig;
+    warriorAnimations: Record<string, GA.WarriorAnimations_T>;
+}
+
+interface ClientConfigDecodedMessage {
+    type: "clientConfigDecoded";
+    requestId: number;
+    config: ClientConfig_T;
+}
+
+type WorkerToMainMessage = ReadyMessage | InitErrorMessage | DecodedMessage | PrecachedMessage_T | DecodeErrorMessage | EnvDecodedMessage | MusicInfoDecodedMessage | CharGroupsDecodedMessage | CharactersPrecachedMessage | ClientConfigDecodedMessage;
+
+export type { MainToWorkerMessage, WorkerToMainMessage, InitMessage, DecodeMessage, PrecacheMessage_T, PrecacheResult_T, PrecachedMessage_T, FreeMessage, DecodeEnvMessage, MusicInfoMessage, DecodeCharacterMessage, DecodeSkeletalMeshMessage, CharGroupsMessage, PrecacheCharactersMessage, ClientConfigMessage, ReadyMessage, InitErrorMessage, DecodedMessage, DecodeErrorMessage, EnvDecodedMessage, MusicInfoDecodedMessage, CharGroupsDecodedMessage, CharactersPrecachedMessage, ClientConfigDecodedMessage, ClientConfig_T };

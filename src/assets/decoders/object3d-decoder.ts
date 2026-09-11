@@ -26,7 +26,6 @@ import {
   SkinnedMesh,
   Points,
   PointsMaterial,
-  Skeleton,
   Bone,
   SkeletonHelper,
   KeyframeTrack,
@@ -77,6 +76,7 @@ import MovableObject from "@client/objects/movable-object";
 import RotatingObject from "@client/objects/rotating-object";
 import SwayingObject from "@client/objects/swaying-object";
 import TerrainDecoration from "@client/objects/terrain-decoration";
+import LocalSpaceSkeleton from "@client/objects/local-space-skeleton";
 
 const cacheGeometries = new WeakMap<
   GD.IGeometryDecodeInfo,
@@ -1029,12 +1029,19 @@ function decodeSkinnedMesh(
     new MeshBasicMaterial({ color: 0xff00ff });
 
   const bones = decodeBones(library, info.skeleton);
-  const skeleton = new Skeleton(bones);
+  const skeleton = new LocalSpaceSkeleton(bones);
 
   const mesh = new SkinnedMesh(geometry, materials);
 
   mesh.add(bones[0]);
   mesh.bind(skeleton);
+
+  // mesh-local bone matrices: three skins through world space, where float32 quantizes an idle pose
+  // away at level coordinates. The skeleton composes the mesh-space pose itself, so it needs its own
+  // mesh back-reference, and bindMode stays "detached" (bindMatrix already brings the bones in).
+  bones[0].visible = false; // projectObject returns at an invisible node, so the chain stays out of the renderer's per-frame walk
+  skeleton.mesh = mesh;
+  mesh.bindMode = "detached";
 
   const animations = Object.keys(info.animations).reduce(
     (acc, k) => {
@@ -1252,6 +1259,7 @@ function decodeObject3D(
 
 export default decodeObject3D;
 export {
+  decodeObject3D,
   decodePackage,
   decodeSectorCore,
   decodeSectorStaticMeshes,

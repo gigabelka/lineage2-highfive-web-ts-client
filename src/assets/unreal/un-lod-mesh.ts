@@ -55,13 +55,21 @@ abstract class ULodMesh extends UMesh {
   protected vertexCount: number;
   protected unkArr0 = new FPrimitiveArray(BufferValue.uint32);
 
-  protected unkArr1: number[];
+  /* mesh-local placement of the vertices, read straight by USkeletalMesh.getDecodeInfo */
+  protected meshScale: FVector;
+  protected meshOrigin: FVector;
+  protected meshRotOrigin: FRotator;
   protected unkArr2 = new FPrimitiveArray(BufferValue.uint16);
   protected unkArr3 = new FArray(FUnknownStruct1);
   protected unkArr4 = new FPrimitiveArray(BufferValue.uint16);
   protected unkArr5: FArray<FUnknownStruct2> = new FArray(FUnknownStruct2);
   protected unkArr6: FArray<FUnknownStruct3> = new FArray(FUnknownStruct3);
-  protected unkArr7: number[];
+  protected meshScaleMax: number;
+  protected lodHysteresis: number;
+  protected lodStrength: number;
+  protected lodMinVerts: number;
+  protected lodMorph: number;
+  protected lodZDisplace: number;
   protected hasImpostor: boolean;
   protected skinTesselationFactor: number;
   protected unkVar2: number;
@@ -81,7 +89,21 @@ abstract class ULodMesh extends UMesh {
 
     this.lodMeshMaterials.load(pkg);
 
-    this.unkArr1 = new Array(9).fill(1).map(() => pkg.read("float"));
+    this.meshScale = FVector.make(
+      pkg.read("float"),
+      pkg.read("float"),
+      pkg.read("float"),
+    );
+    this.meshOrigin = FVector.make(
+      pkg.read("float"),
+      pkg.read("float"),
+      pkg.read("float"),
+    );
+    this.meshRotOrigin = FRotator.make(
+      pkg.read("int32"),
+      pkg.read("int32"),
+      pkg.read("int32"),
+    );
 
     if (this.version < 2) {
     }
@@ -92,7 +114,12 @@ abstract class ULodMesh extends UMesh {
     this.unkArr5.load(pkg);
     this.unkArr6.load(pkg);
 
-    this.unkArr7 = new Array(6).fill(1).map(() => pkg.read("float"));
+    this.meshScaleMax = pkg.read("float");
+    this.lodHysteresis = pkg.read("float");
+    this.lodStrength = pkg.read("float");
+    this.lodMinVerts = pkg.read("int32");
+    this.lodMorph = pkg.read("float");
+    this.lodZDisplace = pkg.read("float");
 
     if (this.version >= 3) {
       const maybeHasImpostor = pkg.read("uint32");

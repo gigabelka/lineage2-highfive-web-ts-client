@@ -41,6 +41,7 @@ class AssetLoader extends AAssetLoader<
   private static readonly PROBE_IMP_TYPES = [
     "Texture",
     "StaticMesh",
+    "SkeletalMesh",
     "Sound",
     "Level",
     "Animation",

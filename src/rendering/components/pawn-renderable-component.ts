@@ -1,0 +1,63 @@
+import { Mesh, Sphere } from "three";
+import { COMPONENT_EVENT_NOT_HANDLED, ComponentEventResult_T, ObjectComponent } from "@client/game/components";
+import { MESHES_CHANGED_EVENT } from "@client/game/component-events";
+import type BaseActor from "@client/base-actor";
+import type RenderManager from "@client/rendering/render-manager";
+
+const tmpSphere = new Sphere();
+
+/**
+ * Keeps a pawn's mesh-local bounding sphere for the RenderManager's frustum pass.
+ *
+ * A skinned mesh's geometry bounds are bind-pose bounds, but the meshes are parented with an offset
+ * transform (and a character is several parts), so the union is taken in the pawn's local space and
+ * transformed by the pawn's world matrix on demand. Until meshes are set, the pawn's own collision
+ * primitive stands in, which keeps the player cullable before its body has decoded.
+ */
+export class PawnRenderableComponent extends ObjectComponent<BaseActor> {
+    public readonly componentName = "pawnRenderable";
+    protected readonly renderManager: RenderManager;
+    protected readonly localSphere = new Sphere();
+    protected readonly worldSphere = new Sphere();
+
+    public constructor(renderManager: RenderManager) {
+        super();
+
+        this.renderManager = renderManager;
+    }
+
+    public onAttach(): void { this.renderManager.registerPawnRenderable(this); }
+    public onDetach(): void { this.renderManager.unregisterPawnRenderable(this); }
+
+    public onEvent(type: string, data: unknown): ComponentEventResult_T<unknown> {
+        if (type !== MESHES_CHANGED_EVENT) return COMPONENT_EVENT_NOT_HANDLED;
+
+        this.setMeshes(data as Mesh[]);
+
+        // handled, but there is no result to hand back to the dispatcher
+        return undefined;
+    }
+
+    protected setMeshes(meshes: Mesh[]): void {
+        this.localSphere.makeEmpty();
+
+        for (const mesh of meshes) {
+            mesh.updateMatrix();
+
+            if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+            if (mesh.geometry.boundingSphere) this.localSphere.union(tmpSphere.copy(mesh.geometry.boundingSphere).applyMatrix4(mesh.matrix));
+        }
+    }
+
+    public getRenderSphere(): Sphere {
+        const parent = this.getParent();
+
+        if (this.localSphere.isEmpty()) return parent.getCollisionPrimitive().bounds.getBoundingSphere(this.worldSphere);
+
+        parent.updateWorldMatrix(true, false);
+
+        return this.worldSphere.copy(this.localSphere).applyMatrix4(parent.matrixWorld);
+    }
+}
+
+export default PawnRenderableComponent;

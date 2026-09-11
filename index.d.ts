@@ -74,7 +74,28 @@ declare global {
                     | "L2MovableStaticMeshActor"
                     | "Projector"
                     | "AntiPortalActor"
-                    | "AmbientSound";
+                    | "AmbientSound"
+                    | "AnimNotify"
+                    | "AnimNotify_IdleSound"
+                    | "AnimNotify_MatSubAction"
+                    | "AnimNotify_Scripted"
+                    | "AnimNotify_Script"
+                    | "AnimNotify_Sound"
+                    | "AnimNotify_SwimSound"
+                    | "AnimNotify_DestroyEffect"
+                    | "AnimNotify_Effect"
+                    | "AnimNotify_AttackVoice"
+                    | "AnimNotify_Channeling"
+                    | "AnimNotify_AttackPreShot"
+                    | "AnimNotify_AttackShot"
+                    | "AnimNotify_AttackItem"
+                    | "AnimNotify_ScreenFade"
+                    | "AnimNotify_ViewShake"
+                    | "AnimNotify_BoneScale";
+
+                export type WarriorAnimations_T = import("@unreal/conf-files/un-conf-warrior").WarriorAnimations_T;
+                export type LocalizationProperty_T = import("@unreal/conf-files/un-conf-localization").LocalizationProperty_T;
+                export type IDynamicHairConfigDecodeInfo = import("@unreal/conf-files/un-conf-hair").IDynamicHairConfigDecodeInfo;
 
                 export type USound = import("@unreal/un-sound").default;
                 export type UAmbientSoundObject = import("@unreal/un-ambient-sound").default;
@@ -92,6 +113,7 @@ declare global {
                 export type UShader = import("@unreal/un-material").UShader;
 
                 export type AActor = import("@unreal/un-aactor").default;
+                export type UAnimNotify = import("@unreal/skeletal-mesh/un-anim-notify").UAnimNotify;
 
                 export type AInfo = import("@unreal/un-info").default;
                 export type UL2FogInfo = import("@unreal/un-fog-info").default;
@@ -159,6 +181,8 @@ declare global {
                 export type IndexTypedArrayAttribute = typeof THREE.Uint8BufferAttribute | typeof THREE.Uint16BufferAttribute | typeof THREE.Uint32BufferAttribute;
 
                 export type Vector2Arr = [number, number];
+                /** bone-index attribute width, chosen from the skeleton size (see getTypedArrayConstructor) */
+                export type SkinIndexArray_T = Uint8Array | Uint16Array | Uint32Array;
                 export type Vector4Arr = [number, number, number, number];
                 export type Matrix4Arr = number[] & { length: 16 };
                 export type QuaternionArr = Vector4Arr;
@@ -180,6 +204,8 @@ declare global {
                     loadEmitters?: boolean,
                     loadEmitterList?: { name: string, emitters?: string[] }[],
                     loadAudio?: boolean,
+                    /** keep influences 5..8 of a >4-influence skeletal vertex (skinIndex2/skinWeight2) */
+                    loadExtendedBoneInfluences?: boolean,
                     /** spawn/simulate non-player pawns (NPCs wire up in Phase 5) */
                     loadPawns?: boolean,
                     /** resolve and spawn NPC definitions (Phase 5) */
@@ -386,8 +412,160 @@ declare global {
                     geometry: string;
                     materials?: string;
                     skeleton: IBoneDecodeInfo[];
-                    animations: Record<string, IKeyframeDecodeInfo_T[]>
+                    animations: Record<string, IKeyframeDecodeInfo_T[]>;
+                    animationSequences: Record<string, IAnimationSequenceDecodeInfo>;
+                    animationNotifies: Record<string, IAnimationNotifyDecodeInfo[]>;
+                    skinNotifies: Record<string, ISkinNotifyDecodeInfo>;
+                    /** skin-notify material variants, indexed by the notify's skinIndex (0 is the base material) */
+                    skinMaterials?: Record<number, string>;
+                    /** names the character bundle whose clips drive this mesh (character parts share one animation set) */
+                    animationSet?: string;
+                    meshScale: Vector3Arr;
+                    meshOrigin: Vector3Arr;
+                    meshRotOrigin: Vector3Arr;
+                    meshRotOriginQuaternion: QuaternionArr;
+                    /** ULodMesh::Version is the class's bone-simulation type, see USkeletalMesh::GetBoneSimulationType */
+                    boneSimulationType: number;
+                    dynamicHair?: IDynamicHairDecodeInfo;
+                    scaledGlow?: number;
+                    ambient?: {
+                        glow: number,
+                        isUnlit: boolean
+                    };
+                    /** Phase 4 script binding */
+                    scriptClassId?: string;
+                    scriptProperties?: Record<string, any>;
                 }
+
+                export interface IAnimationSequenceDecodeInfo {
+                    /** frame the attack effect fires on, as a fraction of the sequence length */
+                    attackEffectFrame: number;
+                    attackEndEffectFrame: number;
+                }
+
+                export interface IDynamicHairDecodeInfo {
+                    type: number;
+                    config: GA.IDynamicHairConfigDecodeInfo;
+                }
+
+                export type IAnimationNotifyObjectDecodeInfo =
+                    | IAnimationNativeNotifyDecodeInfo
+                    | IAnimationSoundNotifyDecodeInfo
+                    | IAnimationSwimSoundNotifyDecodeInfo
+                    | IAnimationScreenFadeNotifyDecodeInfo
+                    | IAnimationViewShakeNotifyDecodeInfo
+                    | IAnimationEffectNotifyDecodeInfo;
+
+                /** notify classes this port does not model - the client keeps the class name only */
+                export interface IAnimationNativeNotifyDecodeInfo {
+                    type: "native";
+                    className: string;
+                    objectName: string;
+                }
+
+                export interface IAnimationSoundNotifyDecodeInfo {
+                    type: "sound";
+                    className: "AnimNotify_Sound";
+                    objectName: string;
+                    sound: string | null;
+                    volume: number;
+                    radius: number;
+                    random: number;
+                    defaultWalkSounds: string[];
+                    defaultRunSounds: string[];
+                    grassWalkSounds: string[];
+                    grassRunSounds: string[];
+                    waterWalkSounds: string[];
+                    waterRunSounds: string[];
+                    defaultActorWalkSounds: string[];
+                    defaultActorRunSounds: string[];
+                }
+
+                export interface IAnimationSwimSoundSetDecodeInfo {
+                    sounds: string[];
+                    volume: number;
+                    radius: number;
+                    random: number;
+                }
+
+                export interface IAnimationSwimSoundNotifyDecodeInfo {
+                    type: "swimSound";
+                    className: "AnimNotify_SwimSound";
+                    objectName: string;
+                    surface: IAnimationSwimSoundSetDecodeInfo | null;
+                    underwater: IAnimationSwimSoundSetDecodeInfo | null;
+                }
+
+                export interface IAnimationScreenFadeNotifyDecodeInfo {
+                    type: "screenFade";
+                    className: "AnimNotify_ScreenFade";
+                    objectName: string;
+                    fadeOutDuration: number;
+                    fadeOutColor: Vector4Arr;
+                    blackOutDuration: number;
+                    fadeInDuration: number;
+                }
+
+                export interface IAnimationViewShakeNotifyDecodeInfo {
+                    type: "viewShake";
+                    className: "AnimNotify_ViewShake";
+                    objectName: string;
+                    shakeType: "damage" | "vibration" | "user" | "up" | "down" | "upDown" | "downUp";
+                    shakeIntensity: number;
+                    shakeVector: Vector3Arr;
+                    shakeRange: number;
+                    shakeCount: number;
+                }
+
+                export interface IAnimationEffectNotifyDecodeInfo {
+                    type: "effect";
+                    className: "AnimNotify_Effect";
+                    objectName: string;
+                    effectClass: string | null;
+                    bone: string;
+                    offsetLocation: Vector3Arr;
+                    offsetRotation: Vector3Arr;
+                    attach: boolean;
+                    tag: string;
+                    drawScale: number;
+                    drawScale3D: Vector3Arr;
+                    trailCamera: boolean;
+                    independentRotation: boolean;
+                    effectScale: number;
+                }
+
+                export interface IAnimationNotifyDecodeInfo {
+                    time: number;
+                    name: string;
+                    object: IAnimationNotifyObjectDecodeInfo | null;
+                }
+
+                export interface ISkinNotifyEntryDecodeInfo {
+                    time: number;
+                    skinIndex: number;
+                }
+
+                export interface IFixedSkinNotifyDecodeInfo {
+                    mode: "fixed";
+                    frameCount: number;
+                    timeline: ISkinNotifyEntryDecodeInfo[];
+                }
+
+                export interface IGroupedSkinNotifyDecodeInfo {
+                    mode: "grouped";
+                    frameCount: number;
+                    groups: { startFrame: number; timeline: ISkinNotifyEntryDecodeInfo[]; }[];
+                }
+
+                export interface IRandomSkinNotifyDecodeInfo {
+                    mode: "random";
+                    frameCount: number;
+                    intervalMin: number;
+                    intervalMax: number;
+                    timeline: ISkinNotifyEntryDecodeInfo[];
+                }
+
+                export type ISkinNotifyDecodeInfo = IFixedSkinNotifyDecodeInfo | IGroupedSkinNotifyDecodeInfo | IRandomSkinNotifyDecodeInfo;
 
                 export interface IEmitterDecodeInfo extends IBaseObjectDecodeInfo {
                     acceleration: Vector3Arr,
@@ -496,6 +674,53 @@ declare global {
                     scale: Vector3Arr,
                     parent: number
                 }
+
+                // --- characters / NPCs (Phase 3a) ----------------------------------------------
+
+                /** Npcgrp.dat + npcname-e.dat + entereventgrp.dat joined on the NPC tag */
+                export type INpcDefinition = {
+                    id: number;
+                    name: string;
+                    className: string;
+                    mesh: string;
+                    textures: string[];
+                    enterEvent: INpcEnterEvent | null;
+                };
+
+                export type INpcEnterEvent = {
+                    sound: string;
+                    soundVolume: number;
+                    soundRadius: number;
+                    isRise: number;
+                    spawnType: number;
+                    effect: string;
+                    animation: string;
+                };
+
+                export type ICharacterGroup = {
+                    index: number,
+                    name: string,
+                    faceVariants: number,
+                    hairStyles: number[],
+                    hairColours: Record<number, number[]>,
+                    armor: ICharacterArmorOptions
+                };
+
+                export type ICharacterArmorOption = { id: number, label: string };
+
+                export type ICharacterArmorOptions = {
+                    chest: ICharacterArmorOption[],
+                    legs: ICharacterArmorOption[],
+                    gloves: ICharacterArmorOption[],
+                    boots: ICharacterArmorOption[]
+                };
+
+                export type ICharacterArmorSelection = {
+                    chest: number,
+                    legs: number,
+                    gloves: number,
+                    boots: number
+                };
 
                 export interface IBaseZoneDecodeInfo {
                     type: "Sector" | "Zone" | "Sky",
@@ -675,8 +900,11 @@ declare global {
                         sway?: Float32Array,
                         uvs?: Float32Array | Float32Array[];
                         uvs2?: Float32Array | Float32Array[];
-                        skinIndex?: Uint8Array;
+                        skinIndex?: SkinIndexArray_T;
                         skinWeight?: Float32Array;
+                        /* influences 5..8 of a >4-influence vertex, see loadExtendedBoneInfluences */
+                        skinIndex2?: SkinIndexArray_T;
+                        skinWeight2?: Float32Array;
                         nodeIndex?: Uint32Array;
                     };
                     indices?: IndexLikeArray;

@@ -7,17 +7,18 @@ import type { ScriptNativeCall_T, ScriptValue_T, Vector3Arr } from "@client/ue-s
 import { COMPONENT_EVENT_NOT_HANDLED, GameObject } from "@client/game/components";
 import { ColliderComponent } from "@client/physics/components/physics-component";
 import PawnMovementComponent, { PawnMovementState_T } from "@client/physics/components/pawn-movement-component";
+import AnimationComponent from "@client/objects/components/animation-component";
+import PawnRenderableComponent from "@client/rendering/components/pawn-renderable-component";
 
 /**
  * Components looked up by name below that do not exist yet:
- *   "animation"      -> AnimationComponent      (Phase 3)
  *   "transform"      -> TransformComponent      (Phase 4)
  *   "npcLifecycle"   -> NpcLifecycleComponent   (Phase 5)
- *   "pawnRenderable" -> PawnRenderableComponent (Phase 3)
- * The lookup pattern is kept verbatim from the donor project; the accessors that the Phase 1
- * physics loop actually reaches (`getAnimationAction`, `playMovementAnimation`, `release`) use
- * `findComponent` so they degrade to a no-op instead of throwing. Everything else still uses
- * `getComponent` and will throw loudly if called before its phase lands - that is intentional.
+ *   "script"         -> ScriptComponent         (Phase 4)
+ * The lookup pattern is kept verbatim from the donor project; the accessors that reach components
+ * from a later phase use `findComponent` so they degrade to a no-op instead of throwing, while
+ * everything that is attached unconditionally (see the constructor) uses `getComponent` and throws
+ * loudly if the component is ever missing - that is intentional.
  */
 
 const tmpUp = new Vector3(0, 0, 1);
@@ -39,9 +40,19 @@ export class BaseActor extends GameObject implements ICollidable {
         this.up.copy(tmpUp);
         this.movementComponent = this.addComponent(new PawnMovementComponent(renderManager));
         this.addComponent(new ColliderComponent());
+
+        /*
+         * The donor attaches these - plus sound/effects/hairSimulation/skinNotify/transform/
+         * npcLifecycle - from `AssetManager.setPawnComponents()`, i.e. lazily, on the character/NPC
+         * load path. Main's AssetManager only streams sectors today, so the two components that exist
+         * attach here instead, and the `findComponent` guards keep the donor's idempotent pattern
+         * working when the later phases add their own setPawnComponents-style helper.
+         */
+        if (!this.findComponent("animation")) this.addComponent(new AnimationComponent(renderManager));
+        if (!this.findComponent("pawnRenderable")) this.addComponent(new PawnRenderableComponent(renderManager));
     }
 
-    protected get animationComponent(): any { return this.findComponent<any>("animation"); }
+    protected get animationComponent(): AnimationComponent { return this.getComponent<AnimationComponent>("animation"); }
 
     // --- UnrealScript bridge ---------------------------------------------------------------
     // The VM lands in Phase 4. These carry their final public signatures so Phase 4 only has to
@@ -124,7 +135,7 @@ export class BaseActor extends GameObject implements ICollidable {
 
     // --- collision / movement --------------------------------------------------------------
 
-    public getAnimationAction(): AnimationAction { return this.animationComponent?.getAction() ?? null; }
+    public getAnimationAction(): AnimationAction { return this.animationComponent.getAction(); }
 
     public getCollisionRadius(): number { return this.movementComponent.getCollisionRadius(); }
     public getCollisionHeight(): number { return this.movementComponent.getCollisionHeight(); }
@@ -159,12 +170,12 @@ export class BaseActor extends GameObject implements ICollidable {
     public gainScriptChild(object: Object3D): void { this.getComponent<any>("transform").gainScriptChild(object); }
     public loseScriptChild(object: Object3D): void { this.getComponent<any>("transform").loseScriptChild(object); }
 
-    public getRenderSphere(): Sphere { return this.getComponent<any>("pawnRenderable").getRenderSphere(); }
+    public getRenderSphere(): Sphere { return this.getComponent<PawnRenderableComponent>("pawnRenderable").getRenderSphere(); }
 
     public setMeshes(meshes: Mesh[]): void { this.animationComponent.setMeshes(meshes); }
 
     public setAnimations(animations: Record<string, AnimationClip>): void { this.animationComponent.setAnimations(animations); }
-    public stopAnimations(): void { this.animationComponent?.stop(); }
+    public stopAnimations(): void { this.animationComponent.stop(); }
 
     // materials and textures stay - material-decoder hands those out of name-keyed shared caches
     public release(): void {
@@ -179,7 +190,7 @@ export class BaseActor extends GameObject implements ICollidable {
     public setFallingAnimation(animationName: string): void { this.animationComponent.setBasicAnimation("falling", animationName); }
     public setSwimmingAnimation(animationName: string): void { this.animationComponent.setBasicAnimation("swimming", animationName); }
     public setSwimmingIdleAnimation(animationName: string): void { this.animationComponent.setBasicAnimation("swimmingIdle", animationName); }
-    public playMovementAnimation(state: PawnMovementState_T): void { this.animationComponent?.playMovement(state); }
+    public playMovementAnimation(state: PawnMovementState_T): void { this.animationComponent.playMovement(state); }
     public setDeathAnimationFromScript(): void { this.animationComponent.setDeathAnimationFromScript(); }
     public initAnimations(): void { this.animationComponent.init(); }
 

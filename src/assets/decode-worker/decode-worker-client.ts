@@ -1,5 +1,5 @@
 import DecodeLibrary from "@client/assets/unreal/decode-library";
-import type { WorkerToMainMessage, PrecacheResult_T } from "./decode-protocol";
+import type { WorkerToMainMessage, PrecacheResult_T, ClientConfig_T } from "./decode-protocol";
 import type DecodeEngine from "./decode-engine";
 import { deserializeLibraryAsync } from "./library-serializer";
 import { refreshSoundBlobUris } from "./decode-cache";
@@ -44,6 +44,14 @@ class DecodeWorkerClient {
     protected pending = new Map<number, PendingRequest_T>();
     protected nextRequestId = 1;
     protected sectorWorker = new Map<string, number>(); // sector -> worker that decoded it
+    /*
+     * Character/NPC packages are not sector-scoped: the same .ukx (LineageMonsters,
+     * LineageNpcs, …) is fetched for many characters, and package refcounts are per-worker.
+     * Routing these calls round-robin would decode the same package once per worker and
+     * triple both the memory and the decode time, so every character/skeletal-mesh call and
+     * the character bundle cache behind them stay pinned to one slot.
+     */
+    protected readonly characterWorkerIndex = 0;
     protected mainThreadEngine: DecodeEngine = null;
     protected readonly binaryDecodeQueue: BinaryDecodeRequest_T[] = [];
     protected isDecodingBinary = false;
@@ -115,6 +123,86 @@ class DecodeWorkerClient {
         }
 
         return best;
+    }
+
+    /**
+     * The pinned slot for character/NPC work; falls back to the least-busy live worker when
+     * it died, which only costs a re-decode of its bundles.
+     */
+    protected pickCharacterWorker(): number {
+        const slot = this.slots[this.characterWorkerIndex];
+
+        if (slot && !slot.isDead) return this.characterWorkerIndex;
+
+        return this.pickWorker();
+    }
+
+    public async decodeCharacter(
+        settings: GD.LoadSettings_T,
+        charIndex: number = 1,
+        faceVariant: number = 0,
+        hairVariant: number = 0,
+        hairColour: number = 0,
+        armor: GD.ICharacterArmorSelection = { chest: 0, legs: 0, gloves: 0, boots: 0 },
+        includeAnimations: boolean = true,
+    ): Promise<DecodeLibrary> {
+        if (this.mainThreadEngine)
+            return Object.setPrototypeOf(await this.mainThreadEngine.decodeCharacter(settings, charIndex, faceVariant, hairVariant, hairColour, armor, includeAnimations), DecodeLibrary.prototype) as DecodeLibrary;
+
+        const workerIndex = this.pickCharacterWorker();
+
+        if (workerIndex < 0) throw new Error("Decode worker is dead");
+
+        return this.dispatch(workerIndex, { type: "decodeCharacter", settings, charIndex, faceVariant, hairVariant, hairColour, armor, includeAnimations });
+    }
+
+    public async decodeSkeletalMesh(
+        settings: GD.LoadSettings_T,
+        packageName: string,
+        meshName: string,
+        scriptClassPath: string = null,
+        texturePaths: string[] = [],
+        npcId: number = null,
+        includeAnimations: boolean = true,
+    ): Promise<DecodeLibrary> {
+        if (this.mainThreadEngine)
+            return Object.setPrototypeOf(await this.mainThreadEngine.decodeSkeletalMesh(settings, packageName, meshName, scriptClassPath, texturePaths, npcId, includeAnimations), DecodeLibrary.prototype) as DecodeLibrary;
+
+        const workerIndex = this.pickCharacterWorker();
+
+        if (workerIndex < 0) throw new Error("Decode worker is dead");
+
+        return this.dispatch(workerIndex, { type: "decodeSkeletalMesh", settings, packageName, meshName, scriptClassPath, texturePaths, npcId, includeAnimations });
+    }
+
+    public getCharGroups(): Promise<GD.ICharacterGroup[]> {
+        if (this.mainThreadEngine) return this.mainThreadEngine.decodeCharGroups();
+
+        const workerIndex = this.pickCharacterWorker();
+
+        if (workerIndex < 0) return Promise.reject(new Error("decode worker is dead"));
+
+        return this.dispatch(workerIndex, { type: "charGroups" });
+    }
+
+    public precacheCharacters(settings: GD.LoadSettings_T): Promise<void> {
+        if (this.mainThreadEngine) return this.mainThreadEngine.precacheCharacters(settings);
+
+        const workerIndex = this.pickCharacterWorker();
+
+        if (workerIndex < 0) return Promise.reject(new Error("decode worker is dead"));
+
+        return this.dispatch(workerIndex, { type: "precacheCharacters", settings });
+    }
+
+    public decodeClientConfig(): Promise<ClientConfig_T> {
+        if (this.mainThreadEngine) return this.mainThreadEngine.decodeClientConfig();
+
+        const workerIndex = this.pickCharacterWorker();
+
+        if (workerIndex < 0) return Promise.reject(new Error("decode worker is dead"));
+
+        return this.dispatch(workerIndex, { type: "clientConfig" });
     }
 
     public async decodeSector(sectorName: string, settings: GD.LoadSettings_T): Promise<DecodeLibrary> {
@@ -260,6 +348,27 @@ class DecodeWorkerClient {
                 if (!request) break;
 
                 request.resolve(msg.music);
+                break;
+            }
+            case "charGroupsDecoded": {
+                const request = this.settlePending(msg.requestId);
+                if (!request) break;
+
+                request.resolve(msg.groups);
+                break;
+            }
+            case "charactersPrecached": {
+                const request = this.settlePending(msg.requestId);
+                if (!request) break;
+
+                request.resolve(undefined);
+                break;
+            }
+            case "clientConfigDecoded": {
+                const request = this.settlePending(msg.requestId);
+                if (!request) break;
+
+                request.resolve(msg.config);
                 break;
             }
         }

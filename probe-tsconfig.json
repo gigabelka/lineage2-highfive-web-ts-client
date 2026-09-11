@@ -1,0 +1,16 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "paths": {
+            "@native": ["./src/assets/unreal/scripts/un-native-registry.ts"],
+            "@client/*": ["./src/*"],
+            "@unreal/*": ["./src/assets/unreal/*"],
+            "@l2js/core": ["./vendor/l2js-core/src/index.ts"],
+            "@l2js/core/*": ["./vendor/l2js-core/src/*", "./vendor/l2js-core/*"],
+            "gmp-wasm": ["./vendor/gmp-wasm/dist/index.esm.min.js"]
+        }
+    }
+}

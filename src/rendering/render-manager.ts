@@ -56,6 +56,7 @@ import MovableObject from "@client/objects/movable-object";
 import RotatingObject from "@client/objects/rotating-object";
 import DisplayGammaPass, { GAMMA_STEPS } from "./display-gamma";
 import type BaseActor from "@client/base-actor";
+import type PawnRenderableComponent from "@client/rendering/components/pawn-renderable-component";
 import CollisionWorld, {
   type CheckResult_T,
   type CollisionBackend_T,
@@ -364,6 +365,19 @@ class RenderManager implements IPhysicsHost {
   protected pixelRatio: number = global.devicePixelRatio;
   protected readonly frustum = new Frustum();
   protected readonly lastProjectionScreenMatrix = new Matrix4();
+
+  /**
+   * Live pawns' renderable components, registered on attach (each `BaseActor` adds a
+   * PawnRenderableComponent in its constructor). Used by `updatePawnVisibility` for the frustum
+   * test only - presentation ticking rides the physics blocks further down `_preRender`.
+   *
+   * MUST stay declared above `player`: field initializers run in declaration order, and constructing
+   * the player registers its components, so this set has to exist by then.
+   */
+  protected readonly pawnRenderables = new Set<PawnRenderableComponent>();
+
+  /** Scratch set rebuilt every frame by `updatePawnVisibility`: registered pawns the frustum rejected. */
+  protected readonly frustumCulledPawns = new Set<BaseActor>();
 
   public readonly player = new Player(this);
 
@@ -1405,6 +1419,9 @@ class RenderManager implements IPhysicsHost {
     pawn.removeFromParent();
   }
 
+  public registerPawnRenderable(component: PawnRenderableComponent): void { this.pawnRenderables.add(component); }
+  public unregisterPawnRenderable(component: PawnRenderableComponent): void { this.pawnRenderables.delete(component); }
+
   public getSectorByCoords(
     sectorX: number,
     sectorY: number,
@@ -1580,10 +1597,30 @@ class RenderManager implements IPhysicsHost {
     );
   }
 
+  /**
+   * Two verdicts, combined. The BSP-leaf pass below is unchanged and still owns every pawn under a
+   * sector's `pawns` group (the map-placed static pawn actors decoded by `decodePackage`, plus live
+   * NPCs once Phase 5 spawns them). On top of it, the live pawns that registered a
+   * PawnRenderableComponent get a frustum test against their own mesh-derived bound - the player is
+   * the only such pawn today, and it is parented to `scene`, so the leaf pass never reaches it and
+   * the frustum verdict is all it gets. A pawn that both passes see has to satisfy both.
+   */
   protected updatePawnVisibility(): void {
+    this.frustumCulledPawns.clear();
+
+    if (this.frustumCullingEnabled)
+      for (const component of this.pawnRenderables)
+        if (!this.frustum.intersectsSphere(component.getRenderSphere()))
+          this.frustumCulledPawns.add(component.getParent());
+
     this.sectors.forEach((row) =>
       row.forEach((sector) => {
         for (const pawn of sector.pawns.children) {
+          if (this.frustumCulledPawns.has(pawn as BaseActor)) {
+            pawn.visible = false;
+            continue;
+          }
+
           pawn.getWorldPosition(tmpPawnWorldPos);
 
           const containingSector = this.getSector(tmpPawnWorldPos);
@@ -1600,6 +1637,16 @@ class RenderManager implements IPhysicsHost {
         }
       }),
     );
+
+    // registered pawns outside any sector group (the player) are not visited by the pass above
+    for (const component of this.pawnRenderables) {
+      const pawn = component.getParent();
+      let parent = pawn.parent;
+
+      while (parent && !(parent as any).isSectorObject) parent = parent.parent;
+
+      if (!parent) pawn.visible = !this.frustumCulledPawns.has(pawn);
+    }
   }
 
   protected _updateObjects(currentTime: number, deltaTime: number) {
@@ -2400,6 +2447,16 @@ class RenderManager implements IPhysicsHost {
     }
 
     this.audioManager.update(currentTime);
+
+    /*
+     * Component presentation (`BaseActor.updatePresentation` -> `updateComponents`, i.e. the
+     * AnimationComponent's cross-fade bookkeeping and notify dispatch) is ticked by the two physics
+     * blocks below: `player.update` at 60 Hz and `pawn.update` at 30 Hz. The donor's separate
+     * per-frame `updatePawnPresentation` pass over its pawn-renderable registry is deliberately NOT
+     * ported - it exists there because the donor has no player pawn tick, and adding it here would
+     * tick the player's components a second and third time every frame for no gain.
+     * (`pawnRenderables` feeds visibility/frustum only.)
+     */
 
     // 60 Hz: the player's own physics. physicsWorld.step() used to run exactly once in
     // startRendering(); the pawn controller needs the broad phase refreshed every tick.
