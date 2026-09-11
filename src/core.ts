@@ -12,6 +12,12 @@ async function startCore() {
 
   const startTime = performance.now();
 
+  const texturesOverride = new URLSearchParams(location.search).get("textures");
+  const textures: "auto" | "rgba" | "compressed" =
+    texturesOverride === "rgba" || texturesOverride === "compressed"
+      ? texturesOverride
+      : "auto";
+
   const loadSettings: GD.LoadSettings_T = {
     helpersZoneBounds: false,
     batching: {
@@ -20,10 +26,10 @@ async function startCore() {
     },
     cache: {
       enabled: true,
-      version: 9, // bump when decode logic changes, invalidates all previously cached sectors
+      version: 10, // bump when decode logic changes, invalidates all previously cached sectors
     },
     decodeWorkerPoolSize: 3, // num workers, 0 will run on main thread
-    textures: "auto",
+    textures,
     loadTerrain: true,
     loadBaseModel: true,
     loadStaticModels: true,
