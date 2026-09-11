@@ -1,6 +1,6 @@
-import { ColliderDesc, RigidBodyDesc } from "@dimforge/rapier3d";
+import { RigidBodyDesc } from "@dimforge/rapier3d";
 import { Object3D, Quaternion, Vector3 } from "three";
-import CollidingMesh from "./colliding-mesh";
+import CollidingMesh, { CollidingMeshProps_T } from "./colliding-mesh";
 import { MeshLight } from "./lit-actor";
 
 type MoverState_T = "closed" | "delaying" | "opening" | "open" | "closing";
@@ -17,7 +17,7 @@ class MovableObject extends CollidingMesh {
     protected keyNum: number;
     protected stateStart: number = 0;
 
-    public constructor(props: { geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], lightInfo: MeshLight, colliderIndices: Uint32Array, scaledGlow: number, isSunAffected?: boolean, ambient?: { glow: number, vector: number[], isUnlit: boolean }, mover: GD.IMoverDecodeInfo }) {
+    public constructor(props: CollidingMeshProps_T & { mover: GD.IMoverDecodeInfo }) {
         super(props);
 
         this.mover = props.mover;
@@ -28,8 +28,10 @@ class MovableObject extends CollidingMesh {
         if (this.keyNum > 0) this.state = "open";
     }
 
+    // super builds the trimesh desc AND the analytical primitive (so a pawn can ride the mover);
+    // only the body kind differs from a static CollidingMesh.
     public makeCollider(indices: Uint32Array, vertices: Float32Array) {
-        this.colliderDesc = ColliderDesc.trimesh(vertices, indices);
+        super.makeCollider(indices, vertices);
         this.rigidbodyDesc = RigidBodyDesc.kinematicPositionBased();
     }
 

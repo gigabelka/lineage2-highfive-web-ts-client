@@ -55,6 +55,17 @@ import InstancedSpriteBatcher from "@client/objects/emitters/instanced-sprite-ba
 import MovableObject from "@client/objects/movable-object";
 import RotatingObject from "@client/objects/rotating-object";
 import DisplayGammaPass, { GAMMA_STEPS } from "./display-gamma";
+import type BaseActor from "@client/base-actor";
+import CollisionWorld, {
+  type CheckResult_T,
+  type CollisionBackend_T,
+  type CollisionQuery_T,
+  type RayCheckResult_T,
+} from "@client/physics/collision-world";
+import type {
+  IPhysicsComponent,
+  IPhysicsHost,
+} from "@client/physics/components/physics-component";
 
 const gui = new GUI({ autoPlace: false, width: 300 });
 Object.assign(gui.domElement.style, {
@@ -261,7 +272,10 @@ function shouldUpdateVisibleEmitter(
   return aggressiveLod ? (phase & 1) === 0 : phase % 3 !== 0;
 }
 
-class RenderManager {
+// Phase 5 hands the live pawn list to onPhysicsTick; nothing needs it in Phase 1.
+const EMPTY_ACTORS: BaseActor[] = [];
+
+class RenderManager implements IPhysicsHost {
   public readonly renderer: THREE.WebGLRenderer;
   public readonly viewport: HTMLViewportElement;
   public getDomElement() {
@@ -357,6 +371,19 @@ class RenderManager {
   protected readonly sunCam: THREE.Camera;
 
   public readonly physicsWorld: RAPIER.World;
+  public readonly collisionWorld: CollisionWorld;
+
+  /**
+   * Live pawns other than the player (NPCs land in Phase 5). Per the port plan a pawn lives under
+   * its containing `SectorObject.pawns` group, never directly in `scene`, so sector streaming owns
+   * its lifetime. The player is the deliberate exception and stays parented to `scene`.
+   */
+  public readonly pawns = new Set<BaseActor>();
+
+  /** Physics components registered with this manager; it plays the donor project's PhysicsManager role. */
+  protected readonly physicsComponents = new Set<IPhysicsComponent<any>>();
+  protected nextPlayerTick = 0;
+  protected nextPawnTick = 0;
 
   protected activeSector = 0;
   protected sectorBounds = new Array<THREE.Box3>();
@@ -472,6 +499,22 @@ class RenderManager {
     this.wireEmitterVisibilityHandlers();
 
     this.physicsWorld = new RAPIER.World(new Vector3(0, 0, -9.8 * 100));
+
+    // Phase 1 ships only the Rapier backend; the analytical "ue" backend lands in Phase 2.
+    const backendOverride = new URLSearchParams(location.search).get(
+      "collisionBackend",
+    );
+    const collisionBackend: CollisionBackend_T =
+      backendOverride === "ue" ||
+      backendOverride === "rapier" ||
+      backendOverride === "compare"
+        ? backendOverride
+        : "rapier";
+
+    this.collisionWorld = new CollisionWorld(
+      this.physicsWorld,
+      collisionBackend,
+    );
 
     // lightmapped water
     // this.camera.position.set(2187.089541437192, -1232.1649850535432, 110751.03244741965);
@@ -1242,6 +1285,124 @@ class RenderManager {
 
   public getSector(position: THREE.Vector3): SectorObject | null {
     return this.getSectorByCoords(...this.getSectorId(position));
+  }
+
+  /**
+   * A pawn only simulates once the sector it stands in has its static-mesh geometry built -
+   * otherwise it would fall through a half-streamed world.
+   */
+  public isSectorCollisionReady(position: THREE.Vector3): boolean {
+    const sector = this.getSector(position);
+
+    return !!sector && !!sector.staticMeshGroup;
+  }
+
+  // --- IPhysicsHost (the donor project's PhysicsManager, folded into RenderManager) ---------
+
+  public updateDynamicEntries(currentTime: number): void {
+    this.collisionWorld.updateDynamicEntries(currentTime);
+  }
+
+  public moveActor(query: CollisionQuery_T): CheckResult_T | null {
+    return this.collisionWorld.moveActor(query);
+  }
+
+  public singleLineCheck(query: CollisionQuery_T): CheckResult_T | null {
+    return this.collisionWorld.singleLineCheck(query);
+  }
+
+  public rayCheck(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    maxDistance: number,
+    sourceCollider?: RAPIER.Collider,
+    sourceBody?: RAPIER.RigidBody,
+    sourceIsPlayer: boolean = true,
+  ): RayCheckResult_T | null {
+    return this.collisionWorld.rayCheck(
+      origin,
+      direction,
+      maxDistance,
+      sourceCollider,
+      sourceBody,
+      sourceIsPlayer,
+    );
+  }
+
+  public registerCollider(object: ICollidable): void {
+    if (!object.isCollidable) return;
+
+    const collider = object.createCollider(this.physicsWorld);
+    const colliders = object.getColliders ? object.getColliders() : [collider];
+
+    this.colliderMap.set(collider, object);
+    this.collisionWorld.register(object, colliders);
+  }
+
+  public unregisterCollider(object: ICollidable): void {
+    const collider = object.getCollider();
+    const colliders = object.getColliders ? object.getColliders() : [collider];
+    const rigidbody = object.getRigidbody();
+
+    this.collisionWorld.unregister(colliders);
+
+    if (rigidbody) this.physicsWorld.removeRigidBody(rigidbody);
+    else
+      for (const c of colliders)
+        if (c) this.physicsWorld.removeCollider(c, false);
+
+    // removed handles are dead; createCollider must not hand the cached set back on re-stream
+    if (object.releaseCollider) object.releaseCollider();
+  }
+
+  public registerPhysicsComponent(component: IPhysicsComponent<any>): void {
+    if (component.isPhysicsAdded(this)) return;
+
+    component.onPhysicsAdded(this);
+    this.physicsComponents.add(component);
+  }
+
+  public unregisterPhysicsComponent(component: IPhysicsComponent<any>): void {
+    if (!component.isPhysicsAdded(this)) return;
+
+    this.physicsComponents.delete(component);
+    component.onPhysicsRemoved(this);
+  }
+
+  protected registerObjectComponents(object: BaseActor): void {
+    for (const component of object.getComponents<IPhysicsComponent<any>>())
+      if (component.isPhysicsComponent) this.registerPhysicsComponent(component);
+  }
+
+  protected unregisterObjectComponents(object: BaseActor): void {
+    for (const component of object.getComponents<IPhysicsComponent<any>>())
+      if (component.isPhysicsComponent)
+        this.unregisterPhysicsComponent(component);
+  }
+
+  // --- pawns ------------------------------------------------------------------------------
+
+  /**
+   * Parents the pawn under the containing sector's `pawns` group (never `scene`) so unloading
+   * that sector takes its pawns with it. Phase 5 hangs real NPC spawning off this.
+   */
+  public addPawn(pawn: BaseActor): void {
+    if (this.pawns.has(pawn)) return;
+
+    const sector = this.getSector(pawn.position);
+
+    if (!sector) return;
+
+    sector.pawns.add(pawn);
+    this.pawns.add(pawn);
+    this.registerObjectComponents(pawn);
+  }
+
+  public removePawn(pawn: BaseActor): void {
+    if (!this.pawns.delete(pawn)) return;
+
+    this.unregisterObjectComponents(pawn);
+    pawn.removeFromParent();
   }
 
   public getSectorByCoords(
@@ -2240,17 +2401,36 @@ class RenderManager {
 
     this.audioManager.update(currentTime);
 
-    const desiredPosition = new Vector3()
-      .copy(this.player.getRigidbody().translation() as THREE.Vector3)
-      .add(
-        new Vector3(
-          0,
-          -this.player.getColliderSize().y * 0.5 - this.player.getStepHeight(),
-          0,
-        ),
-      );
+    // 60 Hz: the player's own physics. physicsWorld.step() used to run exactly once in
+    // startRendering(); the pawn controller needs the broad phase refreshed every tick.
+    if (this.nextPlayerTick <= currentTime) {
+      this.nextPlayerTick = currentTime + 1000 / 60;
 
-    this.player.position.lerp(desiredPosition, 0.1);
+      this.physicsWorld.step();
+
+      for (const component of this.physicsComponents) {
+        if (!component.onPhysicsTick) continue;
+        if ((component.getPhysicsTickRate?.() ?? 30) < 60) continue;
+
+        component.onPhysicsTick(currentTime, deltaTime, EMPTY_ACTORS);
+      }
+
+      this.player.update(this, currentTime, deltaTime);
+    }
+
+    // 30 Hz: every other pawn. No-op until Phase 5 spawns NPCs.
+    if (this.nextPawnTick <= currentTime) {
+      this.nextPawnTick = currentTime + 1000 / 30;
+
+      for (const component of this.physicsComponents) {
+        if (!component.onPhysicsTick) continue;
+        if ((component.getPhysicsTickRate?.() ?? 30) >= 60) continue;
+
+        component.onPhysicsTick(currentTime, deltaTime, EMPTY_ACTORS);
+      }
+
+      for (const pawn of this.pawns) pawn.update(this, currentTime, deltaTime);
+    }
 
     this._updateObjects(currentTime, deltaTime);
 
@@ -2595,7 +2775,7 @@ class RenderManager {
   protected _postRender(_currentTime: number, _deltaTime: number) {}
 
   public startRendering() {
-    this.physicsWorld.step();
+    // physicsWorld.step() moved into the 60 Hz accumulator in _preRender.
     this.nextPhysicsTick = 3000;
     this.scene.updateMatrixWorld(true);
 
@@ -2615,12 +2795,14 @@ class RenderManager {
       // if (this.collidables.length > 1) return;
 
       this.collidables.push(obj);
-      this.colliderMap.set(obj.createCollider(this.physicsWorld), obj);
+      // registerCollider also feeds CollisionWorld's owner map, which the pawn traces need to
+      // resolve an impacted collider back to its ICollidable (and its collision profile).
+      this.registerCollider(obj);
     });
 
-    //
-
-    // this.collidables.push(this.player.createCollider(this.physicsWorld));
+    // BaseActor implements ICollidable, so the traversal above already created the player's
+    // cylinder. Its physics components still need to be registered with this manager.
+    this.registerObjectComponents(this.player);
   }
 
   public setSky(sector: SectorObject) {
@@ -2678,6 +2860,17 @@ class RenderManager {
     this.queueSectorWarmup(sector, sector, !!sector.staticMeshGroup);
 
     sector.updateMatrixWorld(true);
+
+    // Colliders are created from world transforms, so this has to run after updateMatrixWorld.
+    // startRendering()'s collectColliders() only ever sees the scene as it stands at boot; every
+    // streamed-in sector registers here (and unregisters in removeSector).
+    sector.traverse((child: ICollidable) => {
+      if (!child.isCollidable) return;
+
+      this.collidables.push(child);
+      this.registerCollider(child);
+    });
+
     freezeStaticSubtree(sector);
 
     // Update visualizer if enabled (only show current sector)
@@ -2915,6 +3108,16 @@ class RenderManager {
       this.movableObjects.delete(mover);
       this.activeMovableObjects.delete(mover);
       this.waitingMovableObjects.delete(mover);
+    });
+
+    sector.traverse((child: ICollidable) => {
+      if (!child.isCollidable || !child.getCollider()) return;
+
+      const index = this.collidables.indexOf(child);
+
+      if (index >= 0) this.collidables.splice(index, 1);
+
+      this.unregisterCollider(child);
     });
 
     this.objectGroup.remove(sector);

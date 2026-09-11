@@ -1,5 +1,5 @@
-import { ColliderDesc, RigidBodyDesc } from "@dimforge/rapier3d";
-import CollidingMesh from "./colliding-mesh";
+import { RigidBodyDesc } from "@dimforge/rapier3d";
+import CollidingMesh, { CollidingMeshProps_T } from "./colliding-mesh";
 import { MeshLight } from "./lit-actor";
 
 const UNITS_TO_RAD = Math.PI / 32768; // 65536 rotator units per revolution
@@ -14,15 +14,16 @@ class RotatingObject extends CollidingMesh {
     protected readonly rateYaw: number;
     protected readonly rateRoll: number;
 
-    public constructor(props: { geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], lightInfo: MeshLight, colliderIndices: Uint32Array, scaledGlow: number, isSunAffected?: boolean, ambient?: { glow: number, vector: number[], isUnlit: boolean }, rotating: GD.IRotatingDecodeInfo }) {
+    public constructor(props: CollidingMeshProps_T & { rotating: GD.IRotatingDecodeInfo }) {
         super(props);
 
         [this.pitch, this.yaw, this.roll] = props.rotating.rotator;
         [this.ratePitch, this.rateYaw, this.rateRoll] = props.rotating.rate;
     }
 
+    // super builds the trimesh desc AND the analytical primitive; only the body kind differs.
     public makeCollider(indices: Uint32Array, vertices: Float32Array) {
-        this.colliderDesc = ColliderDesc.trimesh(vertices, indices);
+        super.makeCollider(indices, vertices);
         this.rigidbodyDesc = RigidBodyDesc.kinematicPositionBased();
     }
 

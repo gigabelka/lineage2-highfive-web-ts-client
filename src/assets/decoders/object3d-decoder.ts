@@ -59,6 +59,7 @@ import ZoneObject, {
 import decodeTexture from "./texture-decoder";
 import Terrain from "@client/objects/terrain";
 import CollidingMesh from "@client/objects/colliding-mesh";
+import BSPCollider from "@client/objects/bsp-collider";
 import SpriteEmitter from "@client/objects/emitters/sprite-emitter";
 import MeshEmitter from "@client/objects/emitters/mesh-emitter";
 import BeamEmitter from "@client/objects/emitters/beam-emitter";
@@ -334,11 +335,8 @@ function decodeStaticMeshActor(
   info: GD.IStaticMeshActorDecodeInfo,
 ): CollidingMesh {
   const instanceInfo = info.instance;
-  const { geometry, materials, collider, lights } = decodeStaticMeshInstance(
-    library,
-    instanceInfo,
-    fetchGeometry,
-  );
+  const { geometry, materials, collider, lights, staticMeshCollision } =
+    decodeStaticMeshInstance(library, instanceInfo, fetchGeometry);
   const scaledGlow = info.scaledGlow;
   const isSunAffected = info.isSunAffected ?? true; // Default to true for backwards compatibility
   const ambient = info.ambient;
@@ -351,6 +349,8 @@ function decodeStaticMeshActor(
     scaledGlow,
     isSunAffected,
     ambient,
+    collision: info.collision,
+    staticMeshCollision,
   };
   const object = info.mover
     ? new MovableObject({ ...props, mover: info.mover })
@@ -549,6 +549,11 @@ function decodeSectorCore(library: GD.DecodeLibrary) {
   (sector as any).decodeLibrary = library;
   sector.nodeToSection = library.nodeToSection;
   sector.nodeZoneMasks = library.nodeZoneMasks;
+
+  // Level BSP is invisible to the static-mesh colliders: build one collider actor out of the
+  // per-node collision hulls so interiors (church, caves) are solid.
+  if (library.bspNodes.some((node) => !!node.collision))
+    sector.add(new BSPCollider(library.bspNodes));
 
   // NEW: Render BSP sections (UE2-style section-based rendering)
   if (library.bspSections && library.bspSections.length > 0) {

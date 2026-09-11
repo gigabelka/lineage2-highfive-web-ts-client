@@ -53,6 +53,13 @@ abstract class UAActor extends UObject {
     declare public readonly isBlockingActors: boolean;
     declare public readonly isBlockingPlayers: boolean;
     declare public readonly isBlockingKarma: boolean;
+    // AActor::IsBlockedBy 0x7cd650 reads these; see GD.IActorCollisionDecodeInfo
+    declare public readonly isCollidingActors: boolean;
+    declare public readonly isCollidingWorld: boolean;
+    declare public readonly isBlockingZeroExtentTraces: boolean;
+    declare public readonly isBlockingNonZeroExtentTraces: boolean;
+    declare public readonly isWorldGeometry: boolean;
+    declare public readonly isUsingCylinderCollision: boolean;
     declare public readonly isDynamicLight: boolean;
     declare public readonly isStaticLighting: boolean;
     declare public readonly dontBatch: boolean;
@@ -260,6 +267,12 @@ abstract class UAActor extends UObject {
             "bBlockActors": "isBlockingActors",
             "bBlockPlayers": "isBlockingPlayers",
             "bBlockKarma": "isBlockingKarma",
+            "bCollideActors": "isCollidingActors",
+            "bCollideWorld": "isCollidingWorld",
+            "bBlockZeroExtentTraces": "isBlockingZeroExtentTraces",
+            "bBlockNonZeroExtentTraces": "isBlockingNonZeroExtentTraces",
+            "bWorldGeometry": "isWorldGeometry",
+            "bUseCylinderCollision": "isUsingCylinderCollision",
             "bDynamicLight": "isDynamicLight",
             "bStaticLighting": "isStaticLighting",
 

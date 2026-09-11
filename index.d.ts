@@ -180,6 +180,12 @@ declare global {
                     loadEmitters?: boolean,
                     loadEmitterList?: { name: string, emitters?: string[] }[],
                     loadAudio?: boolean,
+                    /** spawn/simulate non-player pawns (NPCs wire up in Phase 5) */
+                    loadPawns?: boolean,
+                    /** resolve and spawn NPC definitions (Phase 5) */
+                    loadNpcs?: boolean,
+                    /** create and tick the player pawn */
+                    loadCharacter?: boolean,
                     textures: "auto" | "rgba" | "compressed",
                     helpersZoneBounds?: boolean,
                     isSkyLevel?: boolean,
@@ -215,6 +221,42 @@ declare global {
 
                 export interface IBoxDecodeInfo { isValid: boolean, min: Vector3Arr, max: Vector3Arr }
                 export interface ISphereDecodeInfo { center: Vector3Arr, radius: number }
+
+                // --- analytical collision (Phase 2) -------------------------------------------
+
+                /**
+                 * A UModel reduced to what `UModel::LineCheck` needs: the node plane table plus one
+                 * convex hull per collision node (`iCollisionBound`). Produced by
+                 * `UModel.getCollisionModelDecodeInfo()`, consumed by `colliding-mesh.ts` /
+                 * `bsp-collider.ts`.
+                 */
+                export interface IBSPCollisionModelDecodeInfo {
+                    planes: Vector4Arr[],
+                    hulls: IBSPNodeCollisionInfo_T[]
+                }
+
+                /** UStaticMesh collision payload; `nodes`/`bounds` are the packed kDOP-ish tree. */
+                export interface IStaticMeshCollisionDecodeInfo {
+                    useSimpleLineCollision: boolean,
+                    useSimpleBoxCollision: boolean,
+                    collisionModel: IBSPCollisionModelDecodeInfo | null,
+                    nodes: Int32Array,
+                    bounds: Float32Array
+                }
+
+                /** AActor collision flags, see `AActor::IsBlockedBy` 0x7cd650. */
+                export interface IActorCollisionDecodeInfo {
+                    collideActors: boolean,
+                    collideWorld: boolean,
+                    blockActors: boolean,
+                    blockPlayers: boolean,
+                    blockZeroExtent: boolean,
+                    blockNonZeroExtent: boolean,
+                    worldGeometry: boolean,
+                    useCylinderCollision: boolean,
+                    collisionRadius: number,
+                    collisionHeight: number
+                }
 
                 export interface IZoneDecodeInfo extends IBaseZoneDecodeInfo { type: "Zone" }
                 export interface ISkyZoneDecodeInfo extends IBaseZoneDecodeInfo { type: "Sky" }
@@ -286,6 +328,7 @@ declare global {
                     mover?: IMoverDecodeInfo,
                     rotating?: IRotatingDecodeInfo,
                     swaying?: ISwayingDecodeInfo,
+                    collision?: IActorCollisionDecodeInfo,
                     ambient: {
                         glow: number,
                         vector: Vector3Arr,
@@ -638,6 +681,7 @@ declare global {
                     };
                     indices?: IndexLikeArray;
                     colliderIndices?: Uint32Array;
+                    staticMeshCollision?: IStaticMeshCollisionDecodeInfo;
                     groups?: ArrGeometryGroup[],
                     bounds?: IBoundsDecodeInfo
                 }

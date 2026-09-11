@@ -26,7 +26,7 @@ async function startCore() {
     },
     cache: {
       enabled: true,
-      version: 10, // bump when decode logic changes, invalidates all previously cached sectors
+      version: 11, // bump when decode logic changes, invalidates all previously cached sectors
     },
     decodeWorkerPoolSize: 3, // num workers, 0 will run on main thread
     textures,
@@ -35,6 +35,9 @@ async function startCore() {
     loadStaticModels: true,
     loadEmitters: true,
     loadAudio: true,
+    loadCharacter: true, // player pawn: physics ticks, click-to-move
+    loadPawns: false, // non-player pawns - Phase 5
+    loadNpcs: false, // NPC resolve/spawn - Phase 5
     _loadEmitterList: [],
     _loadStaticModelList: [
       "StaticMeshActor49",

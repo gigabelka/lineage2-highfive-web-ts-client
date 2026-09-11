@@ -187,7 +187,13 @@ export function decodeStaticMeshInstance(
   const collider = infoGeo.colliderIndices || null;
   const lights = decodeStaticMeshActorLight(library, info.lights);
 
-  return { geometry, materials, collider, lights };
+  return {
+    geometry,
+    materials,
+    collider,
+    lights,
+    staticMeshCollision: infoGeo.staticMeshCollision,
+  };
 }
 
 function createStaticMeshBatchJob(

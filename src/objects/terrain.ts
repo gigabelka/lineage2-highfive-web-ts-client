@@ -16,17 +16,20 @@
 import DynamicLight from "@client/objects/dynamic-light";
 import { SectorObject } from "@client/objects/zone-object";
 import type { L2Environment } from "@client/rendering/l2-env";
-import { Mesh, Vector3 } from "three";
-import type { ICollidable } from "./objects";
+import { Box3, Vector3 } from "three";
+import type { CollisionPrimitive_T, ICollidable } from "./objects";
 import RAPIER, { ColliderDesc, RigidBodyDesc } from "@dimforge/rapier3d";
 import { ColorByte } from "@client/utils/color-byte";
+import buildTriangleIndex from "@client/physics/triangle-index";
+import { GameMesh } from "@client/game/components";
+import { ColliderComponent } from "@client/physics/components/physics-component";
 
 const tmpVertex = new Vector3();
 const tmpNormal = new Vector3();
 const cbAmbient = new ColorByte();
 const cbLight = new ColorByte();
 
-class Terrain extends Mesh implements ICollidable {
+class Terrain extends GameMesh implements ICollidable {
   public readonly isCollidable = true;
 
   protected rigidbodyDesc: RigidBodyDesc;
@@ -34,6 +37,12 @@ class Terrain extends Mesh implements ICollidable {
 
   protected collider: RAPIER.Collider;
   protected rigidbody: RAPIER.RigidBody;
+
+  // Analytical ("ue") backend view of this tile. Rapier keeps using the heightfield desc above -
+  // the two are independent descriptions of the same surface.
+  protected analyticalIndices: Uint32Array;
+  protected readonly analyticalBounds = new Box3();
+  protected analyticalPrimitive: CollisionPrimitive_T<"terrain"> = null;
 
   public bounds: THREE.Box3;
   protected boundsSize: THREE.Vector3;
@@ -82,6 +91,8 @@ class Terrain extends Mesh implements ICollidable {
     this.lightingInfo = lightingInfo;
 
     if (fieldInfo) this.setTerrainField(fieldInfo);
+
+    this.addComponent(new ColliderComponent());
   }
 
   public setTerrainField({
@@ -104,6 +115,8 @@ class Terrain extends Mesh implements ICollidable {
       z: this.boundsSize.z,
     });
     this.rigidbodyDesc = RigidBodyDesc.fixed();
+
+    this.buildAnalyticalPrimitive();
 
     if (mapX !== undefined) this.mapX = mapX;
     if (mapY !== undefined) this.mapY = mapY;
@@ -460,6 +473,71 @@ class Terrain extends Mesh implements ICollidable {
   }
   public getRigidbody(): RAPIER.RigidBody {
     return this.rigidbody;
+  }
+
+  public releaseCollider() {
+    this.collider = null;
+    this.rigidbody = null;
+  }
+
+  /**
+   * UTerrainSector::LineCheck works off the tile's own triangle soup, not the heightfield Rapier
+   * uses, so the analytical backend gets its own view here. Built from `this.geometry` - the
+   * per-tile attribute arrays stay live even in batch mode, so the `vertices` reference tracks
+   * stitching edits; only the bucket grid has to be rebuilt (see `refreshCollisionGeometry`).
+   */
+  protected buildAnalyticalPrimitive() {
+    const attrPositions = this.geometry?.getAttribute("position");
+
+    if (!attrPositions || !this.geometry.index) return;
+
+    const arrIndices = this.geometry.index.array;
+    const vertices = attrPositions.array as Float32Array;
+    const indices =
+      arrIndices instanceof Uint32Array
+        ? arrIndices
+        : new Uint32Array(arrIndices);
+
+    this.analyticalIndices = indices;
+    this.analyticalPrimitive = {
+      kind: "terrain",
+      vertices,
+      indices,
+      index: buildTriangleIndex(vertices, indices),
+      matrixWorld: this.matrixWorld,
+      bounds: this.analyticalBounds,
+      supportsZeroExtent: true,
+      supportsNonZeroExtent: true,
+      supportsPointCheck: true,
+    };
+  }
+
+  public getCollisionPrimitive(): CollisionPrimitive_T | null {
+    if (!this.analyticalPrimitive) return null;
+
+    this.updateWorldMatrix(true, false);
+    this.analyticalBounds
+      .setFromArray(this.analyticalPrimitive.vertices)
+      .applyMatrix4(this.matrixWorld);
+
+    return this.analyticalPrimitive;
+  }
+
+  /** Re-buckets the triangle grid after stitching moved edge vertices. */
+  public refreshCollisionGeometry() {
+    if (!this.analyticalPrimitive) {
+      this.buildAnalyticalPrimitive();
+      return;
+    }
+
+    const vertices = this.geometry.getAttribute("position")
+      .array as Float32Array;
+
+    this.analyticalPrimitive.vertices = vertices;
+    this.analyticalPrimitive.index = buildTriangleIndex(
+      vertices,
+      this.analyticalIndices,
+    );
   }
 
   public createCollider(physicsWorld: RAPIER.World) {

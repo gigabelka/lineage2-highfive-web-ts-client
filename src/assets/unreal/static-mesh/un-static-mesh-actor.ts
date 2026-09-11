@@ -35,10 +35,8 @@ abstract class UStaticMeshActor extends UAActor {
   declare protected stepSound1: GA.USound;
   declare protected stepSound2: GA.USound;
   declare protected stepSound3: GA.USound;
-  declare protected isCollidingActors: boolean;
-
-  declare protected isBlockingZeroExtentTraces: boolean;
-  declare protected isBlockingNonZeroExtentTraces: boolean;
+  // bCollideActors / bBlockZeroExtentTraces / bBlockNonZeroExtentTraces now live on UAActor
+  // alongside the rest of the collision flag set; the property map entries below stay here.
 
   declare protected forcedRegion: number;
 
@@ -325,6 +323,20 @@ abstract class UStaticMeshActor extends UAActor {
       bounds: {
         min: [predictedBox.min.x, predictedBox.min.y, predictedBox.min.z],
         max: [predictedBox.max.x, predictedBox.max.y, predictedBox.max.z],
+      },
+      // AActor::IsBlockedBy 0x7cd650 - retail defaults every flag to true when the property is
+      // absent from the actor's tag stream, so `??` (not `||`) is load-bearing here.
+      collision: {
+        collideActors: this.isCollidingActors ?? true,
+        collideWorld: this.isCollidingWorld ?? true,
+        blockActors: this.isBlockingActors ?? true,
+        blockPlayers: this.isBlockingPlayers ?? true,
+        blockZeroExtent: this.isBlockingZeroExtentTraces ?? true,
+        blockNonZeroExtent: this.isBlockingNonZeroExtentTraces ?? true,
+        worldGeometry: this.isWorldGeometry ?? true,
+        useCylinderCollision: !!this.isUsingCylinderCollision,
+        collisionRadius: this.collisionRadius,
+        collisionHeight: this.collisionHeight,
       },
       ...this.getActorDecodeInfo(),
     } as GD.IStaticMeshActorDecodeInfo;

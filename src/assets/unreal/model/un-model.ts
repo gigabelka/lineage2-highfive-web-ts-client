@@ -348,6 +348,49 @@ abstract class UModel extends UPrimitive {
     return result;
   }
 
+  /**
+   * The analytical collision view of this model: the node plane table plus one convex hull per
+   * collision node. Used by `UStaticMesh` for its `collisionModel` (simple line/box collision).
+   *
+   * The per-node hull layout is the same one `getDecodeInfo` already unpacks inline below
+   * (`iCollisionBound` indexes `leafHulls`: a run of plane flags terminated by a negative entry,
+   * followed by 6 int32s that are really the float32 min/max of the hull's box).
+   */
+  public getCollisionModelDecodeInfo(): GD.IBSPCollisionModelDecodeInfo {
+    const planes = this.bspNodes.map((node: FBSPNode) =>
+      node.plane.getElements(),
+    );
+    const hulls: GD.IBSPNodeCollisionInfo_T[] = [];
+    const leafHulls = this.leafHulls.getTypedArray() as Int32Array;
+
+    for (const node of this.bspNodes) {
+      if (node.iCollisionBound < 0) continue;
+
+      const hullIndexList = leafHulls.slice(node.iCollisionBound);
+      let hullPlanesCount = 0;
+
+      while (hullIndexList[hullPlanesCount] >= 0) hullPlanesCount++;
+
+      // reinterpret the 6 trailing int32s as the hull's float32 min/max
+      const bounds = new Float32Array(
+        new Int32Array(
+          hullIndexList.slice(hullPlanesCount + 1, hullPlanesCount + 7),
+        ).buffer,
+      );
+
+      hulls.push({
+        flags: [...hullIndexList.slice(0, hullPlanesCount)],
+        bounds: {
+          isValid: true,
+          min: [bounds[0], bounds[1], bounds[2]],
+          max: [bounds[3], bounds[4], bounds[5]],
+        },
+      });
+    }
+
+    return { planes, hulls };
+  }
+
   public getDecodeInfo(
     builder: GD.DecodeLibraryBuilder,
     uLevelInfo: GA.ULevelInfo,

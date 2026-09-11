@@ -1,6 +1,7 @@
 import DynamicLight from "@client/objects/dynamic-light";
 import { SectorObject } from "@client/objects/zone-object";
-import { BufferAttribute, Matrix4, Mesh, Vector3 } from "three";
+import { BufferAttribute, Matrix4, Vector3 } from "three";
+import { GameMesh } from "@client/game/components";
 import type { L2Environment } from "@client/rendering/l2-env";
 import { ColorByte } from "@client/utils/color-byte";
 
@@ -49,7 +50,7 @@ type AugmentedLight_T = {
   instance?: DynamicLight;
 };
 
-class LitActorMesh extends Mesh {
+class LitActorMesh extends GameMesh {
   public readonly isUpdatable: boolean = true;
 
   protected lightInfo?: MeshLight;
