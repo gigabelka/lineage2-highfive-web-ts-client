@@ -693,6 +693,29 @@ function walkLodModel(r: Reader, log: (s: string) => void, index: number, lodEnd
   log(
     `${indent}  tail: lodHysteresis=${f(lodHysteresis, 3)} numSharedVertices=${numSharedVertices} lodMaxInfluences=${lodMaxInfluences} unkVar0=${unkVar0} unkVar1=${unkVar1} useNewWedges=${useNewWedges}`,
   );
+
+  // HighFive-only hypothesis: one more u32 flag, then (when set) a compat32 count of 52-byte
+  // records. Rigid meshes (MFighter_m001_m00_bh) carry flag=0 and nothing after; soft meshes
+  // (mimic1_m00) carry flag=1 and `numSoftWedges` records of 52 bytes each.
+  const extraFlagAt = r.tell();
+  const extraFlag = r.u32();
+  let extraRecords = 0;
+
+  if (extraFlag !== 0) {
+    const countAt = r.tell();
+    extraRecords = r.compat32();
+
+    if (extraRecords < 0 || extraRecords > 100000) {
+      log(`${indent}  BAD extra.count = ${extraRecords} @${countAt} (implausible)`);
+      return null;
+    }
+
+    r.skip(extraRecords * 52);
+  }
+
+  log(
+    `${indent}  extra: flag=${extraFlag} @${extraFlagAt} records=${extraRecords} (52B each) -> @${r.tell()}`,
+  );
   log(`${indent}  LOD[${index}] ends @${r.tell()} (${r.tell() - start}B)`);
 
   return r.tell();

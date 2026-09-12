@@ -60,12 +60,12 @@ type WarriorAnimations_T = {
 /**
  * --- character / skeletal-actor decode seam -----------------------------------------------
  *
- * These `DecodeWorkerClient` RPCs are all implemented now:
+ * These `DecodeWorkerClient` RPCs back the character/NPC path:
  *
  *   decodeCharacter(settings, charIndex, faceVariant, hairVariant, hairColour, armor): Promise<GD.DecodeLibrary>
  *   decodeSkeletalMesh(settings, packageName, meshName, scriptClassPath, texturePaths, npcId): Promise<GD.DecodeLibrary>
- *   getClientConfig(): { userConfig, warriorAnimations }   (class -> clip names, alongside the existing
- *                                                          sector-scoped `getUserConfig()`)
+ *   decodeClientConfig(): { userConfig, warriorAnimations }   (class -> clip names, alongside the existing
+ *                                                             sector-scoped `getUserConfig()`)
  *   getCharGroups(): GD.ICharacterGroup[]
  *   resolveNpc(selector): GD.INpcDefinition
  *
@@ -81,9 +81,7 @@ function requireWorkerMethod<F extends (...args: any[]) => any>(
   const method = (client as any)[name] as F;
 
   if (typeof method !== "function")
-    throw new Error(
-      `DecodeWorkerClient.${name}() is not implemented yet (Phase 3 decode workstream).`,
-    );
+    throw new Error(`DecodeWorkerClient.${name}() does not exist.`);
 
   return method;
 }
@@ -175,15 +173,16 @@ class AssetManager {
 
     this.userConfig = await getUserConfig();
 
-    /* Character-class config rides the same transport as the sector pipeline. Until the decode
-       workstream lands its RPCs the character load path stays unavailable and says so - this must
-       never block boot, hence the swallowed error below (see decodeCharacterLibrary's message). */
-    await this.loadCharacterConfig();
-
     /* everything below comes out of the decode worker - the app cannot run without it */
     this.decodeWorker = new DecodeWorkerClient(this.decodeWorkerPoolSize);
     await this.decodeWorker.ready;
     this.isWorkerReady = true;
+
+    /* Character-class config rides the same transport as the sector pipeline, and needs a live
+       worker client - must run after `decodeWorker.ready` above. Kept non-fatal (swallowed error
+       below) so a config-decode hiccup never blocks boot; the character load path just stays
+       unavailable and says so (see decodeCharacterLibrary's message). */
+    await this.loadCharacterConfig();
 
     const envInfo = await this.decodeWorker.decodeEnv();
     const musicInfo = await this.decodeWorker.getMusicInfo();
@@ -208,11 +207,9 @@ class AssetManager {
     renderManager.audioManager.setMusicInfo(musicInfo);
 
     /*
-     * The player pawn's body. Today this lands in the catch below with the seam's message (the
-     * character decode RPCs are still landing on the decode side), which is deliberately non-fatal:
-     * the world still streams without a character. Once `decodeCharacter` exists this becomes the
-     * whole character path with no further wiring; a deliberate character swap (Phase 8 GUI) goes
-     * through the public `loadCharacter` instead.
+     * The player pawn's body. Non-fatal: if the character/config decode fails the world still
+     * streams without a character. A deliberate character swap (Phase 8 GUI) goes through the
+     * public `loadCharacter` instead.
      */
     if (this.loadSettings.loadCharacter) {
       try {
@@ -232,7 +229,7 @@ class AssetManager {
     }
   }
 
-  // --- character / skeletal actor (non-sector-scoped, see the decode seam note above) --------
+  // --- character / skeletal actor (non-sector-scoped, see the decode RPC seam note above) -----
 
   protected async loadCharacterConfig(): Promise<void> {
     try {
@@ -249,11 +246,13 @@ class AssetManager {
   }
 
   public async getCharGroups(): Promise<GD.ICharacterGroup[]> {
+    if (this.charGroups) return this.charGroups;
+
     const getCharGroups = requireWorkerMethod<
       () => Promise<GD.ICharacterGroup[]>
     >(this.decodeWorker, "getCharGroups");
 
-    return getCharGroups.call(this.decodeWorker);
+    return (this.charGroups = await getCharGroups.call(this.decodeWorker));
   }
 
   /** `DecodeWorkerClient.resolveNpc` - Npcgrp.dat/npcname-e.dat/entereventgrp.dat lookup by id or name. */
@@ -269,12 +268,12 @@ class AssetManager {
     userConfig?: GA.IUserConfig;
     warriorAnimations?: Record<string, WarriorAnimations_T>;
   }> {
-    const getClientConfig = requireWorkerMethod<() => Promise<any>>(
+    const decodeClientConfig = requireWorkerMethod<() => Promise<any>>(
       this.decodeWorker,
-      "getClientConfig",
+      "decodeClientConfig",
     );
 
-    return getClientConfig.call(this.decodeWorker);
+    return decodeClientConfig.call(this.decodeWorker);
   }
 
   /** `DecodeWorkerClient.decodeCharacter` - see the seam note above. */
@@ -490,8 +489,12 @@ class AssetManager {
 
     const actor = new BaseActor(renderManager);
 
+    /* The player's own position is a boot-time placeholder (`RenderManager`'s hardcoded "near
+       church" spot) that the camera does not track - sector streaming follows the camera
+       (`AssetManager.tick`'s prefetch), so colliders only exist around it. Falling back to the
+       player position here used to spawn NPCs into unloaded space with nothing under them. */
     actor.name = npc.name || `Npc${npc.id}`;
-    actor.position.copy(position || renderManager.player.position);
+    actor.position.copy(position || renderManager.camera.position);
     if (!position) actor.position.add(npcSpawnOffset);
 
     try {
@@ -526,9 +529,14 @@ class AssetManager {
         false,
       );
 
-      if (!floor) throw new Error(`NPC '${npc.id}' has no floor below its spawn position.`);
-
-      actor.position.copy(floor.location);
+      /* A debug spawn should still put something on screen even where the streamed geometry has a
+         gap (map edge, unloaded sector) - warn and keep the un-snapped position instead of
+         failing the whole spawn. */
+      if (!floor)
+        console.warn(
+          `[npc] '${npc.id}' (${npc.name}) has no floor below its spawn position - leaving it unsnapped.`,
+        );
+      else actor.position.copy(floor.location);
     }
 
     try {
@@ -611,7 +619,7 @@ class AssetManager {
   protected getWarriorAnimations(charIndex: number): WarriorAnimations_T {
     if (!this.warriorAnimations || !this.charGroups)
       throw new Error(
-        "Character config is not loaded - DecodeWorkerClient.getClientConfig()/getCharGroups() are part of the concurrent Phase 3 decode workstream.",
+        "Character config is not loaded - loadCharacterConfig() failed at boot, see the earlier '[character] client config unavailable' warning.",
       );
 
     const className = this.getClassName(charIndex).toLowerCase();

@@ -260,6 +260,8 @@ class FStaticModelLOD implements C.IConstructable {
   public lodMaxInfluences: number;
   public unkVar0: number;
   public unkVar1: number;
+  /** HighFive-only: true for a LOD with soft sections - see the note on `load` below. */
+  public hasSoftVertexRecords: boolean;
 
   public load(pkg: C.APackage): this {
     this.skinningData.load(pkg);
@@ -286,6 +288,29 @@ class FStaticModelLOD implements C.IConstructable {
     this.unkVar0 = pkg.read("uint32");
     this.unkVar1 = pkg.read("uint32");
     pkg.read("uint32"); // useNewWedges - read for its size, not acted on
+
+    /* HighFive-only tail, found by byte-walking `Animations/Fighter.ukx` with `tools/ukx-bytes.ts`
+       (its `walkLodModel`): a `uint32` flag, 1 exactly when this LOD has soft sections
+       (`numSoftWedges > 0`), followed - only then - by a `compat32` count equal to `numSoftWedges`
+       and that many 52-byte records (not yet decoded; skinning-related smooth-vertex data, by
+       position). Confirmed byte-exact (every `FArrayLazy` end offset lines up, 0 slack) across
+       every soft LOD of `MFighter_m000_{g,u,l,b}` (armor pieces), all 3 LODs each. Rigid meshes
+       (numSoftWedges === 0, e.g. hair/face pieces) read flag=0 and skip this block correctly for
+       LOD0, but their LOD1+ still desyncs by an amount this hasn't explained - LOD1+ is never
+       read by `getDecodeInfo` (LOD0 only), so `loadLodModels`'s per-LOD catch already tolerates
+       that gap without losing the mesh. */
+    this.hasSoftVertexRecords = pkg.read("uint32") !== 0;
+
+    if (this.hasSoftVertexRecords) {
+      const count = pkg.read("compat32") as number;
+
+      if (count < 0 || count > 0xffffffff)
+        throw new RangeError(
+          `FStaticModelLOD: implausible soft-vertex-records count ${count} - the read cursor has desynced.`,
+        );
+
+      pkg.seek(count * 52);
+    }
 
     return this;
   }
@@ -711,6 +736,7 @@ abstract class USkeletalMesh extends ULodMesh {
 }
 
 export default USkeletalMesh;
+export { FStaticModelLOD };
 
 const MAX_BONES = 4;
 const MAX_EXTENDED_INFLUENCES = 8;
