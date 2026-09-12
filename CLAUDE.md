@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions of Destiny_ game client. It reads the original encrypted UE2 asset binaries (`.unr/.utx/.usx/.uax/.ukx/.u/.ogg`) and renders the world with three.js + WebGL. Currently a streaming asset viewer, not yet gameplay. The code is deliberately messy in places because memory-layout reverse-engineering forces frequent churn — do not "clean up" adjacent code as a side effect of a change.
+A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions of Destiny_ game client. It reads the original encrypted UE2 asset binaries (`.unr/.utx/.usx/.uax/.ukx/.u/.ogg`) and renders the world with three.js + WebGL. Started as a streaming asset viewer; gameplay (actors, physics, UnrealScript bridge) is now being ported in phases from a more complete donor project (`realratchet`'s original client) — see "Actors" below. The code is deliberately messy in places because memory-layout reverse-engineering forces frequent churn — do not "clean up" adjacent code as a side effect of a change.
 
 ## Commands
 
@@ -85,9 +85,15 @@ When adding code, decide which side it belongs to: anything touching `src/assets
 
 `src/rendering/visualizer.ts` (`Visualizer`, `VisualizerMode`) is an in-scene BSP/streaming debug overlay owned by `RenderManager` — **F3** toggles it, **F4** cycles modes (portals / zones / leaves / fogs / audio / emitters). It reads the current `SectorObject` and camera position each frame; the BSP data it draws (`ZoneObject`, `BSPZoneData` / `BSPLeafData` / `BSPNodeData`, `FogInfoObject`, `ILightInfo`) lives in `src/objects/zone-object.ts`, which also defines the `SectorObject` root that a decoded sector instantiates into.
 
-### Actors (early / partially wired)
+### Actors — component-based, ported from the donor project in phases
 
-`src/base-actor.ts` (`BaseActor` — rapier collider/rigidbody, animation state machine, ground raycasts) and `src/player.ts` (`Player extends BaseActor`) are the beginnings of gameplay, plus `src/objects/` actor types (`movable-object.ts`, `rotating-object.ts`, `swaying-object.ts`, `lit-actor.ts`, `terrain-decoration.ts`, emitters). `RenderManager` instantiates one `player`, adds it to the scene, and wires click-to-`goTo`, but `player.update` and its collider creation are commented out — treat this path as scaffolding, not a live feature. README's roadmap: bring Pawns / player controllers back from an old branch.
+`src/game/components.ts` defines the component framework: `GameObject`/`GameMesh` (both implement `IObject`, extend three.js `Object3D`/`Mesh`) hold a `ComponentCollection` of `IComponent`s looked up by `componentName` string (`getComponent`/`findComponent`/`addComponent`), each optionally ticked (`onUpdate`, ordered by `updateOrder`) and able to broadcast/receive events via `dispatchComponentEvent`/`onEvent`. Event name constants live in `src/game/component-events.ts` — a single source of truth so components stay decoupled; the strings are the donor project's verbatim wire format and must not be renamed.
+
+`src/base-actor.ts` (`BaseActor extends GameObject`) and `src/player.ts` (`Player extends BaseActor`) are being rebuilt on top of this by porting the donor project (`realratchet`'s original, more complete client) component-by-component in phases, tracked via comments like `(Phase 3)`, `(Phase 4)`, `(Phase 5)` on the pieces not yet landed. Components that exist today: `PawnMovementComponent`/`ColliderComponent`/`PhysicsComponent` (`src/physics/components/`, backed by `src/physics/collision-world.ts`, `collision-primitive.ts`, `volume-bsp.ts` — a from-scratch collision/physics layer, not rapier-only), `AnimationComponent` (`src/objects/components/animation-component.ts`), `PawnRenderableComponent` (`src/rendering/components/pawn-renderable-component.ts`), `NpcLifecycleComponent` (`src/objects/components/npc-lifecycle-component.ts`). `BaseActor` looks up not-yet-ported components (`"transform"`, `"script"`, Phase 4) via `findComponent` so it degrades to a no-op instead of throwing; components attached unconditionally in the constructor are fetched with `getComponent`, which throws if missing — that distinction is intentional, keep it when porting more components.
+
+`src/ue-script/script-values.ts` defines the type-only shapes (`ScriptValue_T`, `ScriptHost_T`, `ScriptNativeCall_T`) for the future UnrealScript VM bridge (`vm.ts`, `operators.ts`, `native-registry.ts`, Phase 4) so `BaseActor`/`PawnMovementComponent` can carry final method signatures ahead of the VM landing; this file is client-side only (the VM proper is client-side, `script-dump-loader.ts` is worker-side).
+
+`RenderManager.update` drives `player.update` at 60 Hz and NPC `pawn.update` at 30 Hz (`render-manager.ts:2721`); this is a live path now, not commented-out scaffolding. `src/objects/` also has non-actor scene object types (`movable-object.ts`, `rotating-object.ts`, `swaying-object.ts`, `lit-actor.ts`, `terrain-decoration.ts`, emitters).
 
 ### Utilities
 
