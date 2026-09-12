@@ -406,14 +406,24 @@ abstract class APackage extends UEncodedFile {
         // console.log(entry);
       }
 
+      /* `None` is UE2's null object, and an import can legitimately point at it - a notify whose
+         Sound slot is empty, for instance. Resolving it to null is the correct result, not a
+         decode failure. */
+      if (objectName === "None") return null;
+
       let obj = pkg.fetchObjectByType(className, objectName, groupName);
 
       if (obj === null) {
-        // console.log(pkg);
-
-        throw new Error(
-          `(${packageName}) [${className}, ${objectName}, ${groupName}] should not be null`,
+        /* Some cooked imports do not resolve - the same unmodelled import-table shape
+           `asset-loader.ts` skips when walking dependencies. One such reference used to take out
+           the whole object (an AnimNotify's sound, for instance), so treat it as a null reference
+           and say so; anything that genuinely needs the object fails later with a precise error at
+           the point of use rather than here. */
+        console.warn(
+          `UPackage: unresolved reference (${packageName}) [${className}, ${objectName}, ${groupName}] in '${this.path}' - treating as null.`,
         );
+
+        return null;
       }
 
       if (!obj && packageName == "UnrealI")

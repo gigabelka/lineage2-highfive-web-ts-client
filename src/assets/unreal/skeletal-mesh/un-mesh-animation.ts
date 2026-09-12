@@ -5,7 +5,7 @@ import FQuaternion from "../un-quaternion";
 import FVector from "../un-vector";
 import { FIndexArray } from "@l2js/core/unreal/un-array";
 
-class FNamedBone extends UObject {
+class FNamedBone implements C.IConstructable {
   public boneName: string;
   public flags: number;
   public parentIndex: number;
@@ -19,7 +19,7 @@ class FNamedBone extends UObject {
   }
 }
 
-class FAnalogTrack extends UObject {
+class FAnalogTrack implements C.IConstructable {
   public flags: number;
   public keyQuat = new FArray(FQuaternion);
   public keyPos = new FArray(FVector);
@@ -35,7 +35,7 @@ class FAnalogTrack extends UObject {
   }
 }
 
-class FMotionChunk extends UObject {
+class FMotionChunk implements C.IConstructable {
   public rootSpeed3d: FVector;
   public trackTime: number;
   public startBone: number;
@@ -57,7 +57,7 @@ class FMotionChunk extends UObject {
   }
 }
 
-class FMeshAnimNotify extends UObject {
+class FMeshAnimNotify implements C.IConstructable {
   public time: number;
   public name: string;
   public notifyObjectId: number;
@@ -81,7 +81,7 @@ class FMeshAnimNotify extends UObject {
 
 /* skin-notify timelines address body-part materials by index: the material named `<x>_f`
    carries variant 0, `<x>_f1` … variant 1 and so on. */
-class FSkinNotifyEntry extends UObject {
+class FSkinNotifyEntry implements C.IConstructable {
   public time: number;
   public skinIndex: number;
 
@@ -93,7 +93,7 @@ class FSkinNotifyEntry extends UObject {
   }
 }
 
-class FSkinNotifyGroup extends UObject {
+class FSkinNotifyGroup implements C.IConstructable {
   public startFrame: number;
   public timeline = new FArray(FSkinNotifyEntry);
 
@@ -107,7 +107,7 @@ class FSkinNotifyGroup extends UObject {
 
 /* licensee ≥ 0x1a trailer of FAnimSequence; the pre-0x1b layout is the fixed timeline
    alone, the 0x1b one prepends the mode and appends the grouped/random variants */
-class FSkinNotify extends UObject {
+class FSkinNotify implements C.IConstructable {
   public fixedTimeline = new FArray(FSkinNotifyEntry);
   public mode: SkinNotifyMode_T;
   public groupedTimeline = new FArray(FSkinNotifyGroup);
@@ -133,7 +133,7 @@ class FSkinNotify extends UObject {
   }
 }
 
-class FAnimSequence extends UObject {
+class FAnimSequence implements C.IConstructable {
   public bookmark: number;
   public unkVar0: number;
   public name: string;

@@ -57,7 +57,17 @@ class FArray<
     const hasTag = tag !== null && tag !== undefined;
     const nativeElements = opts?.nativeElements === true;
     const beginIndex = hasTag ? pkg.tell() : null;
+    const countAt = pkg.tell();
     const count = pkg.read("compat32");
+
+    /* Setting a negative count throws V8's `RangeError: Invalid array length`, which names
+       neither the array nor the offset - the only evidence a whole decode is desynced is lost.
+       Fail with where it happened instead; a wrong count here always means an earlier field was
+       read with the wrong shape. */
+    if (count < 0 || count > 0xffffffff)
+      throw new RangeError(
+        `FArray<${this.Constructor?.name ?? "?"}>: implausible element count ${count} at offset ${countAt} of '${pkg.path}' - the read cursor has desynced.`,
+      );
 
     this.length = count;
 
@@ -125,14 +135,17 @@ class FArrayLazy<
 
     super.load(pkg, tag);
 
-    /* Upstream `console.assert` only logs, but this project overrides it to throw. For HighFive
-       skeletal meshes `unkLazyInt` is not the end offset (observed garbage like 0x02000100), so
-       this consistency check aborted every LOD decode. Pass `dontThrow` - the project's own
-       escape hatch - so it stays the soft check it was written as. */
+    /* `unkLazyInt` is the end of the array, and `tell()` is content-relative, so the two must
+       agree exactly. This is the cheapest desync detector in the whole reader: when it fires, the
+       array that follows it is being read from the wrong offset. It used to be silenced with
+       `dontThrow` on the theory that HighFive used different semantics - it does not, that was a
+       cursor that had already desynced earlier. The count is included so the report says which
+       array and how much of it was consumed. */
     console.assert(
       pkg.tell() - this.unkLazyInt === 0,
-      `FArrayLazy: unkLazyInt=${this.unkLazyInt} != tell=${pkg.tell()}`,
-      true,
+      `${this.constructor.name}<${this.Constructor?.name ?? "?"}>: end=${pkg.tell()} unkLazyInt=${
+        this.unkLazyInt
+      } count=${this.length}`,
     );
 
     return this;
@@ -470,14 +483,17 @@ class FPrimitiveArrayLazy<
 
     super.load(pkg, tag);
 
-    /* Upstream `console.assert` only logs, but this project overrides it to throw. For HighFive
-       skeletal meshes `unkLazyInt` is not the end offset (observed garbage like 0x02000100), so
-       this consistency check aborted every LOD decode. Pass `dontThrow` - the project's own
-       escape hatch - so it stays the soft check it was written as. */
+    /* `unkLazyInt` is the end of the array, and `tell()` is content-relative, so the two must
+       agree exactly. This is the cheapest desync detector in the whole reader: when it fires, the
+       array that follows it is being read from the wrong offset. It used to be silenced with
+       `dontThrow` on the theory that HighFive used different semantics - it does not, that was a
+       cursor that had already desynced earlier. The count is included so the report says which
+       array and how much of it was consumed. */
     console.assert(
       pkg.tell() - this.unkLazyInt === 0,
-      `FArrayLazy: unkLazyInt=${this.unkLazyInt} != tell=${pkg.tell()}`,
-      true,
+      `${this.constructor.name}<${this.Constructor?.name ?? "?"}>: end=${pkg.tell()} unkLazyInt=${
+        this.unkLazyInt
+      } count=${this.length}`,
     );
 
     return this;

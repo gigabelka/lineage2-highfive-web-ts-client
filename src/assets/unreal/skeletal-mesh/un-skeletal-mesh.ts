@@ -23,6 +23,43 @@ type SkeletalMeshDecodeResult_T = {
    core's UObject constructor calls `makeLayout()`, whose base implementation throws
    ("Layout for '<X>' must be overloaded by the package") - only classes the package
    builds dynamically (via UStruct.buildClass) get a working layout. */
+/* Plain structs, used *as array elements*.
+ *
+ * `FVector` and `FCoords` are UObjects whose layout comes from the package, so an array of them
+ * cannot be constructed here - `FArray.load` builds elements with `createElement`, and without a
+ * package-supplied layout that throws "Layout for 'FVector' must be overloaded by the package".
+ * These carry the same bytes (3 floats, and 4 vectors) with no such dependency, which is also
+ * what the reference implementation used. */
+class FMeshVector implements C.IConstructable {
+  public x: number;
+  public y: number;
+  public z: number;
+
+  public load(pkg: C.APackage): this {
+    this.x = pkg.read("float");
+    this.y = pkg.read("float");
+    this.z = pkg.read("float");
+
+    return this;
+  }
+}
+
+class FMeshCoords implements C.IConstructable {
+  public origin = new FMeshVector();
+  public xAxis = new FMeshVector();
+  public yAxis = new FMeshVector();
+  public zAxis = new FMeshVector();
+
+  public load(pkg: C.APackage): this {
+    this.origin.load(pkg);
+    this.xAxis.load(pkg);
+    this.yAxis.load(pkg);
+    this.zAxis.load(pkg);
+
+    return this;
+  }
+}
+
 class FWeightIndex implements C.IConstructable {
   public boneInfIndices: FPrimitiveArray<"uint16"> = new FPrimitiveArray(
     BufferValue.uint16,
@@ -195,6 +232,127 @@ class FTriangleLOD implements C.IConstructable {
     return this;
   }
 }
+/* Bytes a HighFive LOD carries after the C4 tail fields. Measured from the exact start of the
+   next LOD on two consecutive boundaries (LOD[0]->LOD[1] and LOD[1]->LOD[2] in
+   Animations/Fighter.ukx, both +5), and zero-filled in every LOD inspected. */
+const HIGHTFIVE_LOD_TAIL_EXTRA_BYTES = 5;
+
+function sumSectionFaces(...lists: FSkelMeshSection[][]): number {
+  let faces = 0;
+
+  for (const list of lists) for (const section of list) faces += section.numFaces;
+
+  return faces;
+}
+
+/* Read a compact index straight out of a byte array, allocation-free: this runs once per byte of
+   the search window and the surrounding reader allocates a BufferValue per call. Mirrors
+   BufferValue's `compat32` - low 6 bits of the first byte, bit 6 means "more bytes follow", bit 7
+   is the sign. */
+function readCompactIndexAt(bytes: Uint8Array, at: number): { value: number; length: number } {
+  let b = bytes[at];
+  let length = 1;
+  let value = b & 0x3f;
+
+  if (b & 0x80) return { value: -1, length: 1 }; // negative counts are never valid here
+
+  if (b & 0x40) {
+    let extra = 0;
+
+    do {
+      if (extra++ >= 4) break;
+      b = bytes[at + length++];
+      value |= (b & 0x7f) << (6 + 7 * (extra - 1));
+    } while (b & 0x80);
+  }
+
+  return { value, length };
+}
+
+/* Locate a HighFive LOD's index buffer and vertex stream by shape.
+ *
+ * The C4 field order cannot be followed past the section list in a HighFive cook: it stores a
+ * single index buffer, and something this port has not modelled sits between the sections and it.
+ * The pair is found from the vertex stream instead, which identifies itself - every
+ * `FAnimMeshVertex` is position(3f) + normal(3f) + uv(2f), and a *vertex normal is unit length*,
+ * which nothing else in a LOD is.
+ *
+ * The index buffer is then pinned from behind by two exact checks: its element count is the span
+ * the sections report, and every index must address a wedge of the stream that follows it. The two
+ * revision fields in between are *not* usable - they are equal on some meshes (17/17 on a Fighter
+ * face) and consecutive on others (22/23 on a Fighter hair piece).
+ *
+ * Returns the content-relative offset of the index count, or null. */
+function locateVertexStream(
+  pkg: C.APackage,
+  from: number,
+  expectedIndexCount: number,
+  softWedgeCount: number,
+): { indexCountAt: number; vertexCount: number } | null {
+  if (expectedIndexCount <= 0) return null;
+
+  const buffer = (pkg as unknown as { buffer?: ArrayBuffer }).buffer;
+
+  if (!buffer) return null;
+
+  const contentOffset =
+    (pkg as unknown as { contentOffset?: number }).contentOffset ?? 0;
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+
+  const startAt = from + contentOffset;
+  const limit = bytes.length - 32;
+
+  for (let at = startAt; at < limit; at++) {
+    const count = readCompactIndexAt(bytes, at);
+
+    if (count.value !== expectedIndexCount) continue;
+
+    const indexDataAt = at + count.length,
+      indexEnd = indexDataAt + expectedIndexCount * 2;
+
+    if (indexEnd + 16 > limit) return null;
+
+    // isPartial + isStreamCallback, then the vertex count
+    const vertexCount = readCompactIndexAt(bytes, indexEnd + 16);
+
+    if (vertexCount.value < 1 || vertexCount.value > 200000) continue;
+
+    const vertsAt = indexEnd + 16 + vertexCount.length;
+    const wedgeCount = softWedgeCount + vertexCount.value;
+
+    if (vertsAt + vertexCount.value * 32 > limit) continue;
+
+    let unit = 0;
+
+    for (let i = 0; i < vertexCount.value; i++) {
+      const p = vertsAt + i * 32;
+      const nx = view.getFloat32(p + 12, true),
+        ny = view.getFloat32(p + 16, true),
+        nz = view.getFloat32(p + 20, true);
+
+      if (![nx, ny, nz].every(Number.isFinite)) break;
+      if (Math.abs(Math.sqrt(nx * nx + ny * ny + nz * nz) - 1) < 0.02) unit++;
+    }
+
+    if (unit !== vertexCount.value) continue;
+
+    let maxIndex = 0;
+
+    for (let i = 0; i < expectedIndexCount; i++) {
+      const index = view.getUint16(indexDataAt + i * 2, true);
+
+      if (index > maxIndex) maxIndex = index;
+    }
+
+    if (maxIndex >= wedgeCount) continue;
+
+    return { indexCountAt: at - contentOffset, vertexCount: vertexCount.value };
+  }
+
+  return null;
+}
+
 class FStaticModelLOD implements C.IConstructable {
   public skinningData = new FPrimitiveArray(BufferValue.uint32);
   public skinPoints = new FArray(FSkinPoint);
@@ -207,24 +365,27 @@ class FStaticModelLOD implements C.IConstructable {
   public vertexInfluences = new FArrayLazy(FVertexInfluence);
   public wedges = new FArrayLazy(FMeshWedge);
   public faces = new FArrayLazy(FTriangleLOD);
-  public points = new FArrayLazy(FVector);
+  public points = new FArrayLazy(FMeshVector);
   public lodHysteresis: number;
   public numSharedVertices: number;
   public lodMaxInfluences: number;
   public unkVar0: number;
   public unkVar1: number;
 
-  public load(pkg: C.APackage): this {
+  /* The leading fields are the same in C4 and HighFive, and everything downstream of the vertex
+     influences keys off them, so both layouts share these two halves. */
+  protected readLeading(pkg: C.APackage): void {
     this.skinningData.load(pkg);
     this.skinPoints.load(pkg);
     this.numSoftWedges = pkg.read("int32");
     this.softSections.load(pkg);
     this.rigidSections.load(pkg);
+  }
 
-    this.softIndices.load(pkg);
-    this.rigidIndices.load(pkg);
-    this.skinVertexStream.load(pkg);
-
+  /* `unmodelledTailBytes` is what HighFive appends after the C4 tail fields - zeros on every LOD
+     measured (verified against the exact start of the next LOD on two boundaries), so they are
+     stepped over rather than interpreted. */
+  protected readTail(pkg: C.APackage, unmodelledTailBytes = 0): void {
     this.vertexInfluences.load(pkg);
     this.wedges.load(pkg);
     this.faces.load(pkg);
@@ -235,12 +396,68 @@ class FStaticModelLOD implements C.IConstructable {
     this.lodMaxInfluences = pkg.read("uint32");
     this.unkVar0 = pkg.read("uint32");
     this.unkVar1 = pkg.read("uint32");
+    pkg.read("uint32"); // useNewWedges - read for its size, not acted on
 
-    const useNewWedges = pkg.read("uint32");
+    if (unmodelledTailBytes > 0) pkg.read(BufferValue.allocBytes(unmodelledTailBytes));
+  }
 
-    if (useNewWedges !== 0) return this;
+  /* Size of the LOD's single index buffer.
+   *
+   * A section does not index the buffer from zero: `minStreamIndex` is its offset into it, so the
+   * buffer has to be at least `minStreamIndex + numStreamIndices` long. LOD levels beyond the
+   * first are cooked with a non-zero offset and a shortened span (a Fighter face mesh's LOD[2] has
+   * `minStreamIndex` 126 with `numStreamIndices` 126 over a 252-entry buffer), so summing
+   * `3 * numFaces` under-reports and the buffer cannot be found. Fall back to the face count when
+   * no section reports a span, which is what a flat single-section LOD looks like. */
+  public getIndexCount(): number {
+    let count = 0;
+
+    for (const section of [...this.softSections, ...this.rigidSections])
+      count = Math.max(count, section.minStreamIndex + section.numStreamIndices);
+
+    return count || 3 * sumSectionFaces(this.softSections, this.rigidSections);
+  }
+
+  public load(pkg: C.APackage): this {
+    const lodStart = pkg.tell();
+
+    try {
+      this.readLeading(pkg);
+      this.softIndices.load(pkg);
+      this.rigidIndices.load(pkg);
+      this.skinVertexStream.load(pkg);
+      this.readTail(pkg);
+    } catch (e) {
+      /* HighFive cooks a single index buffer and puts a structure this port does not model yet
+         between the section list and it, so the C4 order above cannot be walked past
+         `rigidSections`. Both are located by the vertex stream's own signature instead; see
+         locateVertexStream. The tail is identical in both layouts, so only the middle differs. */
+      pkg.seek(lodStart, "set");
+      this.readLeading(pkg);
+      this.locateStreams(pkg);
+      this.readTail(pkg, HIGHTFIVE_LOD_TAIL_EXTRA_BYTES);
+    }
 
     return this;
+  }
+
+  protected locateStreams(pkg: C.APackage): void {
+    const expected = this.getIndexCount();
+    const found = locateVertexStream(
+      pkg,
+      pkg.tell(),
+      expected,
+      this.numSoftWedges,
+    );
+
+    if (!found)
+      throw new Error(
+        `FStaticModelLOD: no index buffer / vertex stream found after ${this.softSections.length} soft and ${this.rigidSections.length} rigid section(s) (${expected} expected indices).`,
+      );
+
+    pkg.seek(found.indexCountAt, "set");
+    this.rigidIndices.load(pkg);
+    this.skinVertexStream.load(pkg);
   }
 }
 
@@ -296,7 +513,7 @@ class FVertexInfluence implements C.IConstructable {
 }
 
 abstract class USkeletalMesh extends ULodMesh {
-  protected points2 = new FArray(FVector);
+  protected points2 = new FArray(FMeshVector);
   protected refSkeleton = new FArray(FMeshBone);
   protected animationId: number;
   protected animation: GA.UMeshAnimation;
@@ -305,10 +522,10 @@ abstract class USkeletalMesh extends ULodMesh {
   protected boneInluences = new FArray(FBoneInfluence);
   protected attachAliases: string[];
   protected attachBoneNames: string[];
-  protected attachCoords = new FArray(FCoords);
+  protected attachCoords = new FArray(FMeshCoords);
   protected lodModels = new FArray(FStaticModelLOD);
   protected sk_unkIndex1: number;
-  protected points = new FArrayLazy(FVector);
+  protected points = new FArrayLazy(FMeshVector);
   protected wedges = new FArrayLazy(FMeshWedge);
   protected faces = new FArrayLazy(FTriangle);
   protected vertexInfluences = new FArrayLazy(FVertexInfluence);
@@ -329,8 +546,12 @@ abstract class USkeletalMesh extends ULodMesh {
 
     this.animationId = pkg.read("compat32");
 
+    /* `fetchObject` only resolves the export; the animation's own fields (refBones, sequences,
+       notifies) stay unloaded until `loadSelf`, and `getDecodeInfo` reads them. */
     if (this.animationId !== 0)
-      this.animation = pkg.fetchObject<GA.UMeshAnimation>(this.animationId);
+      this.animation = pkg
+        .fetchObject<GA.UMeshAnimation>(this.animationId)
+        .loadSelf();
 
     this.skeletalDepth = pkg.read("uint32");
     this.weightIndices.load(pkg);
@@ -344,7 +565,27 @@ abstract class USkeletalMesh extends ULodMesh {
     this.attachCoords.load(pkg);
 
     if (this.version >= 2) {
-      this.lodModels.load(pkg);
+      /* Name the mesh in any LOD failure - by the time the cursor has desynced there is nothing
+         left in the payload that says which object was being read. */
+      try {
+        this.lodModels.load(pkg);
+      } catch (e) {
+        throw new Error(`${this.objectName}: ${(e as Error).message}`);
+      }
+
+      /* A mesh cooked with LOD models never reaches the legacy per-mesh arrays that follow:
+         `getDecodeInfo` reads geometry from `lodModels[0]` whenever the top-level wedge array is
+         empty, which is every HighFive character and NPC mesh. HighFive's layout for those arrays
+         is not modelled here, and walking it desyncs (the array end offsets it stores do not line
+         up with any field order tried so far), so the payload is stepped over rather than
+         misparsed. Only meshes without LOD models need the ported reader. */
+      if (this.lodModels.length > 0) {
+        pkg.seek(this.readTail, "set");
+        this.readHead = this.readTail;
+
+        return;
+      }
+
       this.sk_unkIndex1 = pkg.read("compat32");
 
       if (this.sk_unkIndex1 !== 0) this.points.load(pkg);
@@ -1095,7 +1336,8 @@ type VertexInfo_T = {
 };
 
 class FBoneCoord {
-  public origin: FVector = new FVector();
+  // `FVector` is a UObject - only the package-built class has a layout, so use its `make` factory.
+  public origin: FVector = FVector.make();
   public axis: FAxis = new FAxis();
 
   public invert() {
@@ -1159,9 +1401,11 @@ class FBoneCoord {
   }
 }
 
+/* These two are UObjects, so they cannot be built with `new` - only the class the package builds
+   has a layout, and that is what the injected `make` factory returns. */
 function fixVector(v: FVector) {
-  return new FVector(v.x, v.z, v.y);
+  return FVector.make(v.x, v.z, v.y);
 }
 function fixRotation(v: FQuaternion) {
-  return new FQuaternion(v.x, v.z, v.y, v.w);
+  return FQuaternion.make(v.x, v.z, v.y, v.w);
 }
