@@ -56,7 +56,7 @@ interface DecodeSkeletalMeshMessage {
     /* script-bound meshes need the UnrealScript class graph (Phase 4) */
     scriptClassPath: string;
     texturePaths: string[];
-    /* non-null selects the NPC pipeline (Phase 5) */
+    /* non-null carries the resolved Npcgrp.dat id through to the decoded actor */
     npcId: number | null;
     includeAnimations: boolean;
 }
@@ -64,6 +64,14 @@ interface DecodeSkeletalMeshMessage {
 interface CharGroupsMessage {
     type: "charGroups";
     requestId: number;
+}
+
+/* NPC catalog lookup is NOT sector-scoped either - routes to the same character worker as
+   decodeCharacter/getCharGroups, see DecodeWorkerClient.characterWorkerIndex */
+interface ResolveNpcMessage {
+    type: "resolveNpc";
+    requestId: number;
+    selector: string | number;
 }
 
 interface PrecacheCharactersMessage {
@@ -77,7 +85,7 @@ interface ClientConfigMessage {
     requestId: number;
 }
 
-type MainToWorkerMessage = InitMessage | DecodeMessage | PrecacheMessage_T | FreeMessage | DecodeEnvMessage | MusicInfoMessage | DecodeCharacterMessage | DecodeSkeletalMeshMessage | CharGroupsMessage | PrecacheCharactersMessage | ClientConfigMessage;
+type MainToWorkerMessage = InitMessage | DecodeMessage | PrecacheMessage_T | FreeMessage | DecodeEnvMessage | MusicInfoMessage | DecodeCharacterMessage | DecodeSkeletalMeshMessage | CharGroupsMessage | ResolveNpcMessage | PrecacheCharactersMessage | ClientConfigMessage;
 
 interface ReadyMessage {
     type: "ready";
@@ -127,6 +135,12 @@ interface CharGroupsDecodedMessage {
     groups: GD.ICharacterGroup[];
 }
 
+interface NpcResolvedMessage {
+    type: "npcResolved";
+    requestId: number;
+    npc: GD.INpcDefinition;
+}
+
 interface CharactersPrecachedMessage {
     type: "charactersPrecached";
     requestId: number;
@@ -143,6 +157,6 @@ interface ClientConfigDecodedMessage {
     config: ClientConfig_T;
 }
 
-type WorkerToMainMessage = ReadyMessage | InitErrorMessage | DecodedMessage | PrecachedMessage_T | DecodeErrorMessage | EnvDecodedMessage | MusicInfoDecodedMessage | CharGroupsDecodedMessage | CharactersPrecachedMessage | ClientConfigDecodedMessage;
+type WorkerToMainMessage = ReadyMessage | InitErrorMessage | DecodedMessage | PrecachedMessage_T | DecodeErrorMessage | EnvDecodedMessage | MusicInfoDecodedMessage | CharGroupsDecodedMessage | NpcResolvedMessage | CharactersPrecachedMessage | ClientConfigDecodedMessage;
 
-export type { MainToWorkerMessage, WorkerToMainMessage, InitMessage, DecodeMessage, PrecacheMessage_T, PrecacheResult_T, PrecachedMessage_T, FreeMessage, DecodeEnvMessage, MusicInfoMessage, DecodeCharacterMessage, DecodeSkeletalMeshMessage, CharGroupsMessage, PrecacheCharactersMessage, ClientConfigMessage, ReadyMessage, InitErrorMessage, DecodedMessage, DecodeErrorMessage, EnvDecodedMessage, MusicInfoDecodedMessage, CharGroupsDecodedMessage, CharactersPrecachedMessage, ClientConfigDecodedMessage, ClientConfig_T };
+export type { MainToWorkerMessage, WorkerToMainMessage, InitMessage, DecodeMessage, PrecacheMessage_T, PrecacheResult_T, PrecachedMessage_T, FreeMessage, DecodeEnvMessage, MusicInfoMessage, DecodeCharacterMessage, DecodeSkeletalMeshMessage, CharGroupsMessage, ResolveNpcMessage, PrecacheCharactersMessage, ClientConfigMessage, ReadyMessage, InitErrorMessage, DecodedMessage, DecodeErrorMessage, EnvDecodedMessage, MusicInfoDecodedMessage, CharGroupsDecodedMessage, NpcResolvedMessage, CharactersPrecachedMessage, ClientConfigDecodedMessage, ClientConfig_T };

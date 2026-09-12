@@ -185,6 +185,16 @@ class DecodeWorkerClient {
         return this.dispatch(workerIndex, { type: "charGroups" });
     }
 
+    public resolveNpc(selector: string | number): Promise<GD.INpcDefinition> {
+        if (this.mainThreadEngine) return this.mainThreadEngine.resolveNpc(selector);
+
+        const workerIndex = this.pickCharacterWorker();
+
+        if (workerIndex < 0) return Promise.reject(new Error("decode worker is dead"));
+
+        return this.dispatch(workerIndex, { type: "resolveNpc", selector });
+    }
+
     public precacheCharacters(settings: GD.LoadSettings_T): Promise<void> {
         if (this.mainThreadEngine) return this.mainThreadEngine.precacheCharacters(settings);
 
@@ -355,6 +365,13 @@ class DecodeWorkerClient {
                 if (!request) break;
 
                 request.resolve(msg.groups);
+                break;
+            }
+            case "npcResolved": {
+                const request = this.settlePending(msg.requestId);
+                if (!request) break;
+
+                request.resolve(msg.npc);
                 break;
             }
             case "charactersPrecached": {

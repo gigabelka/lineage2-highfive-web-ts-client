@@ -9,11 +9,11 @@ import { ColliderComponent } from "@client/physics/components/physics-component"
 import PawnMovementComponent, { PawnMovementState_T } from "@client/physics/components/pawn-movement-component";
 import AnimationComponent from "@client/objects/components/animation-component";
 import PawnRenderableComponent from "@client/rendering/components/pawn-renderable-component";
+import NpcLifecycleComponent from "@client/objects/components/npc-lifecycle-component";
 
 /**
  * Components looked up by name below that do not exist yet:
  *   "transform"      -> TransformComponent      (Phase 4)
- *   "npcLifecycle"   -> NpcLifecycleComponent   (Phase 5)
  *   "script"         -> ScriptComponent         (Phase 4)
  * The lookup pattern is kept verbatim from the donor project; the accessors that reach components
  * from a later phase use `findComponent` so they degrade to a no-op instead of throwing, while
@@ -50,6 +50,7 @@ export class BaseActor extends GameObject implements ICollidable {
          */
         if (!this.findComponent("animation")) this.addComponent(new AnimationComponent(renderManager));
         if (!this.findComponent("pawnRenderable")) this.addComponent(new PawnRenderableComponent(renderManager));
+        if (!this.findComponent("npcLifecycle")) this.addComponent(new NpcLifecycleComponent());
     }
 
     protected get animationComponent(): AnimationComponent { return this.getComponent<AnimationComponent>("animation"); }
@@ -204,6 +205,8 @@ export class BaseActor extends GameObject implements ICollidable {
 
     public isPlayingOneShotAnimation(animationName: string): boolean { return this.animationComponent.isPlayingOneShot(animationName); }
     public playAnimation(animationName: string, tweenTime: number = 0.1, rate: number = 1, loop: boolean = true, restart: boolean = false): void { this.animationComponent.play(animationName, tweenTime, rate, loop, restart); }
+    public getAnimationNames(): string[] { return this.animationComponent.getAnimationNames(); }
+    public getIdleAnimationName(): string { return this.animationComponent.getIdleAnimationName(); }
 
     public goTo(position: Vector3): void { this.movementComponent.goTo(position); }
     public goToActor(actor: Object3D, offset: number = 0): void { this.movementComponent.goToActor(actor, offset); }

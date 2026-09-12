@@ -36,8 +36,8 @@ async function startCore() {
     loadEmitters: true,
     loadAudio: true,
     loadCharacter: true, // player pawn: physics ticks, click-to-move
-    loadPawns: false, // non-player pawns - Phase 5
-    loadNpcs: false, // NPC resolve/spawn - Phase 5
+    loadPawns: false, // non-player pawns auto-loaded from a sector - not read anywhere yet, NPCs are spawned on demand from the NPC debug panel instead
+    loadNpcs: false, // ditto
     _loadEmitterList: [],
     _loadStaticModelList: [
       "StaticMeshActor49",
@@ -63,6 +63,13 @@ async function startCore() {
 
   renderManager.addClippingRangeControls();
   renderManager.addDisplayGammaControls();
+  renderManager.addNpcControls();
+
+  try {
+    await renderManager.addCharacterControls();
+  } catch (e) {
+    console.warn(`[character] Character panel not available: ${(e as Error).message}`);
+  }
 
   console.info(
     `System has loaded in ${(performance.now() - startTime) / 1000}s!`,

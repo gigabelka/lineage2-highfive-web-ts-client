@@ -49,7 +49,7 @@ import Terrain from "../objects/terrain";
 import { ColorByte } from "@client/utils/color-byte";
 import EnvInfo from "@client/rendering/env-info";
 import AudioManager from "@client/rendering/audio-manager";
-import { GUI } from "lil-gui";
+import { GUI, Controller } from "lil-gui";
 import type AssetManager from "@client/assets/asset-manager";
 import InstancedSpriteBatcher from "@client/objects/emitters/instanced-sprite-batcher";
 import MovableObject from "@client/objects/movable-object";
@@ -393,6 +393,11 @@ class RenderManager implements IPhysicsHost {
    * its lifetime. The player is the deliberate exception and stays parented to `scene`.
    */
   public readonly pawns = new Set<BaseActor>();
+
+  /** NPC debug panel state: the actor last spawned via "Spawn", and whether it should chase the player. */
+  protected spawnedNpc: BaseActor | null = null;
+  protected followPlayerEnabled = false;
+  protected npcSpawnRequest = 0;
 
   /** Physics components registered with this manager; it plays the donor project's PhysicsManager role. */
   protected readonly physicsComponents = new Set<IPhysicsComponent<any>>();
@@ -1538,6 +1543,240 @@ class RenderManager implements IPhysicsHost {
       });
   }
 
+  /**
+   * NPC debug panel: spawn/kill a NPC by Npcgrp.dat name or id, and trigger one-shot attack
+   * animations on it. "NPC attacks"/Attack/Stop are new debug-only functionality (the donor project
+   * has no combat system) - no aggro/targeting/damage, just a clip picker plus play/stop.
+   */
+  public addNpcControls(): void {
+    const folder = gui.addFolder("NPC");
+    let attackControl: Controller = null;
+    let attackOptions: string[] = ["Random"];
+
+    const rebuildAttackOptions = (): void => {
+      attackControl?.destroy();
+      attackControl = null;
+
+      const npc = this.spawnedNpc;
+
+      if (!npc) {
+        attackOptions = ["Random"];
+        return;
+      }
+
+      const names = npc.getAnimationNames();
+      const attackNames = names.filter((name) => /attack|atk/i.test(name));
+
+      attackOptions = ["Random", ...(attackNames.length > 0 ? attackNames : names)];
+      state.attack = attackOptions[0];
+      attackControl = folder.add(state, "attack", attackOptions).name("NPC attacks");
+    };
+
+    const state = {
+      selector: "Baium",
+      spawn: async () => {
+        const request = ++this.npcSpawnRequest;
+        const previous = this.spawnedNpc;
+
+        this.spawnedNpc = null;
+
+        try {
+          const npc = await this.assetManager.spawnNpc(this, state.selector);
+
+          if (request !== this.npcSpawnRequest) {
+            this.removePawn(npc);
+            return;
+          }
+
+          if (previous) this.removePawn(previous);
+
+          this.spawnedNpc = npc;
+          rebuildAttackOptions();
+        } catch (e) {
+          console.error(`[npc] spawn failed: ${(e as Error).message}`);
+        }
+      },
+      kill: () => {
+        ++this.npcSpawnRequest;
+
+        const npc = this.spawnedNpc;
+
+        if (!npc) return;
+
+        this.spawnedNpc = null;
+        npc.playDeathAnimation((actor) => this.removePawn(actor));
+      },
+      attack: "Random",
+      doAttack: () => {
+        const npc = this.spawnedNpc;
+
+        if (!npc) return;
+
+        const clip = state.attack === "Random"
+          ? attackOptions[1 + Math.floor(Math.random() * (attackOptions.length - 1))]
+          : state.attack;
+
+        if (clip) npc.playAnimation(clip, 0.1, 1, false, true);
+      },
+      stop: () => {
+        const npc = this.spawnedNpc;
+
+        if (!npc) return;
+
+        npc.stopMoving();
+        npc.playAnimation(npc.getIdleAnimationName(), 0.1, 1, true);
+      },
+    };
+
+    folder.add(state, "selector").name("Name / ID");
+    folder.add(state, "spawn").name("Spawn");
+    folder.add(state, "kill").name("Kill");
+    rebuildAttackOptions();
+    folder.add(state, "doAttack").name("Attack");
+    folder.add(state, "stop").name("Stop");
+    folder.open();
+  }
+
+  /**
+   * Character debug panel: picks a playable group and its face/hair/hair-colour/armor options
+   * (rebuilt whenever the group or hair style changes, since valid ranges differ per group), applies
+   * them to the player via `AssetManager.loadCharacter`, and offers "Follow Player" (makes the last
+   * spawned NPC chase the player) and "Simulate Pawns" (a random-walk crowd stress test).
+   */
+  public async addCharacterControls(): Promise<void> {
+    const folder = gui.addFolder("Character");
+    const groups = await this.assetManager.getCharGroups();
+
+    if (!groups || groups.length === 0) return;
+
+    const getGroup = (): GD.ICharacterGroup =>
+      groups.find((group) => group.index === state.group) ?? groups[0];
+
+    const applyCharacter = async (): Promise<void> => {
+      try {
+        await this.assetManager.loadCharacter(
+          this,
+          state.group,
+          state.face,
+          state.hair,
+          state.hairColour,
+          { chest: state.chest, legs: state.legs, gloves: state.gloves, boots: state.boots },
+        );
+      } catch (e) {
+        console.error(`[character] load failed: ${(e as Error).message}`);
+      }
+    };
+
+    const state = {
+      group: groups[0].index,
+      face: 0,
+      hair: 0,
+      hairColour: 0,
+      chest: 0,
+      legs: 0,
+      gloves: 0,
+      boots: 0,
+      followPlayer: false,
+      simulate: async () => {
+        try {
+          await this.assetManager.simulatePawns(this);
+        } catch (e) {
+          console.error(`[character] simulate pawns failed: ${(e as Error).message}`);
+        }
+      },
+    };
+
+    let faceControl: Controller = null;
+    let hairControl: Controller = null;
+    let hairColourControl: Controller = null;
+    let chestControl: Controller = null;
+    let legsControl: Controller = null;
+    let glovesControl: Controller = null;
+    let bootsControl: Controller = null;
+
+    const armorOptions = (group: GD.ICharacterGroup, slot: keyof GD.ICharacterArmorOptions): Record<string, number> => {
+      const options: Record<string, number> = { None: 0 };
+
+      for (const item of group.armor[slot]) options[item.label] = item.id;
+
+      return options;
+    };
+
+    const buildArmorControls = (group: GD.ICharacterGroup): void => {
+      chestControl?.destroy();
+      legsControl?.destroy();
+      glovesControl?.destroy();
+      bootsControl?.destroy();
+
+      state.chest = 0;
+      state.legs = 0;
+      state.gloves = 0;
+      state.boots = 0;
+
+      chestControl = folder.add(state, "chest", armorOptions(group, "chest")).name("Chest").onChange(applyCharacter);
+      legsControl = folder.add(state, "legs", armorOptions(group, "legs")).name("Legs").onChange(applyCharacter);
+      glovesControl = folder.add(state, "gloves", armorOptions(group, "gloves")).name("Gloves").onChange(applyCharacter);
+      bootsControl = folder.add(state, "boots", armorOptions(group, "boots")).name("Boots").onChange(applyCharacter);
+    };
+
+    const buildHairColourControl = (group: GD.ICharacterGroup): void => {
+      hairColourControl?.destroy();
+
+      const colours = group.hairColours[state.hair] ?? [0];
+
+      state.hairColour = colours[0];
+
+      const options: Record<string, number> = {};
+
+      for (const colour of colours) options[String(colour)] = colour;
+
+      hairColourControl = folder.add(state, "hairColour", options).name("Hair Color").onChange(applyCharacter);
+    };
+
+    const buildVariantControls = (): void => {
+      faceControl?.destroy();
+      hairControl?.destroy();
+
+      const group = getGroup();
+
+      state.face = 0;
+
+      const faceOptions: Record<string, number> = {};
+
+      for (let i = 0; i < group.faceVariants; i++) faceOptions[String(i)] = i;
+
+      faceControl = folder.add(state, "face", faceOptions).name("Face").onChange(applyCharacter);
+
+      state.hair = group.hairStyles[0] ?? 0;
+
+      const hairOptions: Record<string, number> = {};
+
+      for (const style of group.hairStyles) hairOptions[String(style)] = style;
+
+      hairControl = folder.add(state, "hair", hairOptions).name("Hair").onChange(() => {
+        buildHairColourControl(group);
+        void applyCharacter();
+      });
+
+      buildHairColourControl(group);
+      buildArmorControls(group);
+      void applyCharacter();
+    };
+
+    const groupOptions: Record<string, number> = {};
+
+    for (const group of groups) groupOptions[group.name] = group.index;
+
+    folder.add(state, "group", groupOptions).name("Character").onChange(() => buildVariantControls());
+    folder.add(state, "followPlayer").name("Follow Player").onChange((v: boolean) => {
+      this.followPlayerEnabled = v;
+    });
+    folder.add(state, "simulate").name("Simulate Pawns");
+
+    buildVariantControls();
+    folder.open();
+  }
+
   private wireEmitterVisibilityHandlers(): void {
     this.visualizer.setEmitterVisibilityHandlers(
       (uuid, visible) => this.setEmitterVisible(uuid, visible),
@@ -2475,7 +2714,7 @@ class RenderManager implements IPhysicsHost {
       this.player.update(this, currentTime, deltaTime);
     }
 
-    // 30 Hz: every other pawn. No-op until Phase 5 spawns NPCs.
+    // 30 Hz: every other pawn.
     if (this.nextPawnTick <= currentTime) {
       this.nextPawnTick = currentTime + 1000 / 30;
 
@@ -2487,6 +2726,10 @@ class RenderManager implements IPhysicsHost {
       }
 
       for (const pawn of this.pawns) pawn.update(this, currentTime, deltaTime);
+
+      // NPC debug panel's "Follow Player" checkbox - a debug toy, not gameplay AI.
+      if (this.followPlayerEnabled && this.spawnedNpc && this.pawns.has(this.spawnedNpc))
+        this.spawnedNpc.goToActor(this.player);
     }
 
     this._updateObjects(currentTime, deltaTime);

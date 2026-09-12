@@ -127,6 +127,8 @@ export class AnimationComponent extends ObjectComponent<BaseActor> {
 
     public getMeshes(): readonly Mesh[] { return this.meshes; }
     public getAction(): AnimationAction { return this.animationNotifyAction; }
+    public getAnimationNames(): string[] { return Object.keys(this.actorAnimations); }
+    public getIdleAnimationName(): string { return this.basicActorAnimations.idle; }
 
     public setMeshes(meshes: Mesh[]): void {
         const parent = this.getParent();

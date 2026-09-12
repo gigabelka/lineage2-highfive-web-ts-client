@@ -13,10 +13,15 @@ import DecodeWorkerClient from "@client/assets/decode-worker/decode-worker-clien
 import { getUserConfig } from "@unreal/conf-files/un-conf-system";
 import { AnimationClip, Matrix4, SkinnedMesh, Vector3 } from "three";
 import type { SectorObject } from "@client/objects/zone-object";
-import type BaseActor from "@client/base-actor";
+import BaseActor from "@client/base-actor";
+import Player from "@client/player";
+import NpcSimulationComponent from "@client/physics/components/npc-simulation-component";
 
 const tmpCameraPosition = new Vector3();
 const tmpAttachMatrix = new Matrix4();
+const tmpNpcFloorStart = new Vector3();
+const npcFloorDirection = new Vector3(0, 0, -1);
+const npcSpawnOffset = new Vector3(-600, -600, 0);
 
 const FAILED_SECTOR_RETRY_MS = 30_000;
 const RETIRED_SECTOR_DISPOSE_MS = 30_000;
@@ -26,33 +31,16 @@ const SECTOR_PREFETCH_MAX_DISTANCE = SECTOR_WORLD_SIZE;
 const STATIC_MESH_BUILD_FRAME_MS = 2;
 const BIND_POSE_EPSILON = 1e-3;
 const DEFAULT_CHAR_INDEX = 1;
+const NPC_SPAWN_FLOOR_DISTANCE = 2000;
+/** Ten character decodes at once starve the shared decode-worker pool - see AssetManager.simulatePawns. */
+const PAWN_DECODE_CONCURRENCY = 3;
+const SIMULATE_PAWN_SPREAD = 400;
 
 const tmpPrefetchPosition = new Vector3();
 const tmpCameraMovement = new Vector3();
 
-/**
- * Structural stand-ins for the donor's `@l2js/engine/contracts/pawn` /
- * `contracts/config` types.
- *
- * TODO(Phase 3 decode workstream): main has no such contracts yet - `ICharacterGroup`,
- * `ICharacterArmorSelection` and `WarriorAnimations_T` arrive with the character/NPC decode and
- * config transport. These locals carry exactly the fields this file reads, so the real types can
- * replace them without touching the call sites.
- */
-type CharacterArmorSelection_T = {
-  chest: number;
-  legs: number;
-  gloves: number;
-  boots: number;
-};
-
-type CharacterGroup_T = {
-  index: number;
-  name: string;
-};
-
 /** `decodeCharacter`'s own default: bare body, no armour pieces selected. */
-const DEFAULT_ARMOR_SELECTION: CharacterArmorSelection_T = {
+const DEFAULT_ARMOR_SELECTION: GD.ICharacterArmorSelection = {
   chest: 0,
   legs: 0,
   gloves: 0,
@@ -72,19 +60,19 @@ type WarriorAnimations_T = {
 /**
  * --- character / skeletal-actor decode seam -----------------------------------------------
  *
- * Four `DecodeWorkerClient` RPCs belong to the concurrent decode workstream's transport work:
+ * These `DecodeWorkerClient` RPCs are all implemented now:
  *
  *   decodeCharacter(settings, charIndex, faceVariant, hairVariant, hairColour, armor): Promise<GD.DecodeLibrary>
  *   decodeSkeletalMesh(settings, packageName, meshName, scriptClassPath, texturePaths, npcId): Promise<GD.DecodeLibrary>
  *   getClientConfig(): { userConfig, warriorAnimations }   (class -> clip names, alongside the existing
  *                                                          sector-scoped `getUserConfig()`)
- *   getCharGroups(): CharacterGroup_T[]
+ *   getCharGroups(): GD.ICharacterGroup[]
+ *   resolveNpc(selector): GD.INpcDefinition
  *
- * None of them exists on the client today, so every call is funnelled through the class's
- * `decodeCharacterLibrary` / `decodeSkeletalMeshLibrary` / `getCharGroups` / `loadCharacterConfig`
- * shims below - each guards on the method actually being there and reports exactly what is missing
- * instead of dying on `undefined is not a function`. When the RPCs land, drop the guard arguments (or
- * keep the shims as the one place that knows the argument order).
+ * Every call still goes through the class's `decodeCharacterLibrary` / `decodeSkeletalMeshLibrary` /
+ * `getCharGroups` / `resolveNpc` / `loadCharacterConfig` shims below via `requireWorkerMethod` -
+ * kept as the one place that knows each RPC's argument order and reports a clear message if a
+ * future refactor ever drops one of these methods from `DecodeWorkerClient`.
  */
 function requireWorkerMethod<F extends (...args: any[]) => any>(
   client: DecodeWorkerClient,
@@ -130,8 +118,8 @@ class AssetManager {
   public userConfig: GA.IUserConfig = null;
   /** `assets/system/lineagewarrior.int` clip names per character class; filled by `loadCharacterConfig`. */
   protected warriorAnimations: Record<string, WarriorAnimations_T> = null;
-  /** Character groups (group/face/hair/armour options) the Phase 8 GUI will build `loadCharacter` from. */
-  protected charGroups: CharacterGroup_T[] = null;
+  /** Character groups (group/face/hair/armour options) the Character debug panel builds `loadCharacter` from. */
+  protected charGroups: GD.ICharacterGroup[] = null;
   protected readonly decodeWorkerPoolSize: number;
   protected readonly maxConcurrentDecodes: number; // 0 = main thread, still processes one decode at a time
   protected readonly lastCameraPosition = new Vector3();
@@ -260,12 +248,21 @@ class AssetManager {
     }
   }
 
-  public async getCharGroups(): Promise<CharacterGroup_T[]> {
+  public async getCharGroups(): Promise<GD.ICharacterGroup[]> {
     const getCharGroups = requireWorkerMethod<
-      () => Promise<CharacterGroup_T[]>
+      () => Promise<GD.ICharacterGroup[]>
     >(this.decodeWorker, "getCharGroups");
 
     return getCharGroups.call(this.decodeWorker);
+  }
+
+  /** `DecodeWorkerClient.resolveNpc` - Npcgrp.dat/npcname-e.dat/entereventgrp.dat lookup by id or name. */
+  protected async resolveNpc(selector: string | number): Promise<GD.INpcDefinition> {
+    const resolveNpc = requireWorkerMethod<
+      (selector: string | number) => Promise<GD.INpcDefinition>
+    >(this.decodeWorker, "resolveNpc");
+
+    return resolveNpc.call(this.decodeWorker, selector);
   }
 
   protected async getClientConfig(): Promise<{
@@ -286,7 +283,7 @@ class AssetManager {
     faceVariant: number,
     hairVariant: number,
     hairColour: number,
-    armor: CharacterArmorSelection_T,
+    armor: GD.ICharacterArmorSelection,
   ): Promise<GD.DecodeLibrary> {
     const decode = requireWorkerMethod<(...args: any[]) => Promise<GD.DecodeLibrary>>(
       this.decodeWorker,
@@ -388,7 +385,7 @@ class AssetManager {
     faceVariant: number,
     hairVariant: number,
     hairColour: number,
-    armor: CharacterArmorSelection_T,
+    armor: GD.ICharacterArmorSelection,
     actor?: BaseActor,
   ): Promise<void> {
     this.applyCharacter(
@@ -473,6 +470,142 @@ class AssetManager {
     renderManager.needsUpdate = true;
 
     return library;
+  }
+
+  /**
+   * Resolves `selector` against the Npcgrp.dat catalog and spawns it as a live pawn. `scriptClassPath`
+   * is deliberately never forwarded here (unlike the donor project) - the UnrealScript VM is not
+   * implemented yet (Phase 4), and `decodeSkeletalMesh` still throws on a non-null `scriptClassPath`,
+   * so an NPC spawns with its mesh/animations/enter-event but no script-driven AI.
+   */
+  public async spawnNpc(
+    renderManager: RenderManager,
+    selector: string | number,
+    position: Vector3 = null,
+  ): Promise<BaseActor> {
+    const npc = await this.resolveNpc(selector);
+    const dot = npc.mesh.indexOf(".");
+
+    if (dot < 0) throw new Error(`NPC '${npc.id}' has invalid mesh path '${npc.mesh}'.`);
+
+    const actor = new BaseActor(renderManager);
+
+    actor.name = npc.name || `Npc${npc.id}`;
+    actor.position.copy(position || renderManager.player.position);
+    if (!position) actor.position.add(npcSpawnOffset);
+
+    try {
+      await this.loadSkeletalActor(
+        renderManager,
+        npc.mesh.slice(0, dot),
+        npc.mesh.slice(dot + 1),
+        "Wait",
+        actor,
+        /* scriptClassPath */ null,
+        npc.textures,
+        npc.id,
+        npc.enterEvent?.animation ?? null,
+      );
+    } catch (e) {
+      throw new Error(
+        `NPC '${npc.id}' (${npc.name}) failed to load mesh '${npc.mesh}': ${(e as Error).message}`,
+        { cause: e },
+      );
+    }
+
+    if (!position) {
+      tmpNpcFloorStart.copy(actor.position);
+      tmpNpcFloorStart.z += NPC_SPAWN_FLOOR_DISTANCE * 0.5;
+
+      const floor = renderManager.rayCheck(
+        tmpNpcFloorStart,
+        npcFloorDirection,
+        NPC_SPAWN_FLOOR_DISTANCE,
+        undefined,
+        undefined,
+        false,
+      );
+
+      if (!floor) throw new Error(`NPC '${npc.id}' has no floor below its spawn position.`);
+
+      actor.position.copy(floor.location);
+    }
+
+    try {
+      renderManager.addPawn(actor);
+
+      if (npc.enterEvent) actor.spawnEnterEvent(npc.enterEvent);
+    } catch (e) {
+      renderManager.removePawn(actor);
+      throw e;
+    }
+
+    return actor;
+  }
+
+  /**
+   * Debug "crowd" helper for the Character panel's Simulate Pawns button: spawns `count` random
+   * character pawns near the player, each wandering for `NpcSimulationComponent.LIFETIME` ms before
+   * despawning itself. Bounded decode concurrency, matching the donor's warning: decoding every
+   * character at once starves the shared decode-worker pool that sector streaming also depends on.
+   */
+  public async simulatePawns(
+    renderManager: RenderManager,
+    count: number = NpcSimulationComponent.DEFAULT_COUNT,
+  ): Promise<void> {
+    const groups = this.charGroups ?? (this.charGroups = await this.getCharGroups());
+
+    if (!groups || groups.length === 0)
+      throw new Error("No character groups available to simulate pawns from.");
+
+    let next = 0;
+
+    const worker = async (): Promise<void> => {
+      while (next < count) {
+        const index = next++;
+        const group = groups[Math.floor(Math.random() * groups.length)];
+        const hair = group.hairStyles[Math.floor(Math.random() * group.hairStyles.length)];
+        const colours = group.hairColours[hair];
+        const armor: GD.ICharacterArmorSelection = { chest: 0, legs: 0, gloves: 0, boots: 0 };
+        const pawn = new Player(renderManager);
+
+        for (const slot of Object.keys(armor) as (keyof GD.ICharacterArmorSelection)[]) {
+          const items = group.armor[slot];
+
+          armor[slot] = items.length > 0 && Math.random() < 0.75
+            ? items[Math.floor(Math.random() * items.length)].id
+            : 0;
+        }
+
+        pawn.name = `SimPawn${index}`;
+        pawn.position.copy(renderManager.player.position);
+        pawn.position.x += (Math.random() - 0.5) * SIMULATE_PAWN_SPREAD;
+        pawn.position.y += (Math.random() - 0.5) * SIMULATE_PAWN_SPREAD;
+
+        await this.loadCharacter(
+          renderManager,
+          group.index,
+          Math.floor(Math.random() * group.faceVariants),
+          hair,
+          colours[Math.floor(Math.random() * colours.length)],
+          armor,
+          pawn,
+        );
+
+        pawn.addComponent(new NpcSimulationComponent()).configure(
+          performance.now() + NpcSimulationComponent.LIFETIME,
+          0,
+        );
+        renderManager.addPawn(pawn);
+      }
+    };
+
+    const concurrency = Math.min(PAWN_DECODE_CONCURRENCY, count);
+    const workers: Promise<void>[] = [];
+
+    for (let i = 0; i < concurrency; i++) workers.push(worker());
+
+    await Promise.all(workers);
   }
 
   protected getWarriorAnimations(charIndex: number): WarriorAnimations_T {

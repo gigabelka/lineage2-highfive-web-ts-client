@@ -110,6 +110,15 @@ async function handleMessage(msg: MainToWorkerMessage) {
             }
             break;
         }
+        case "resolveNpc": {
+            try {
+                post({ type: "npcResolved", requestId: msg.requestId, npc: await engine.resolveNpc(msg.selector) });
+            } catch (e) {
+                console.error("[decode-worker] failed to resolve NPC:", e);
+                post({ type: "decodeError", requestId: msg.requestId, message: (e as Error)?.message ?? String(e), stack: (e as Error)?.stack });
+            }
+            break;
+        }
         case "precacheCharacters": {
             try {
                 await engine.precacheCharacters(msg.settings);

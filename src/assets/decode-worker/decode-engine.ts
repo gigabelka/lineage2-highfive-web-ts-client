@@ -13,6 +13,9 @@ import {
   SCHEMA_ITEMNAME_E_DAT,
   CHARACTER_ARMOR_GROUPS,
   CHARACTER_ARMOR_SLOTS,
+  SCHEMA_NPCGRP_DAT,
+  SCHEMA_NPCNAME_E_DAT,
+  SCHEMA_ENTEREVENTGRP_DAT,
 } from "@unreal/datafile/schema/schema-types";
 import { getUserConfig } from "@unreal/conf-files/un-conf-system";
 import DecodeLibrary from "@unreal/decode-library";
@@ -382,6 +385,8 @@ class DecodeEngine {
   protected cacheCharGrpRows: Record<string, any>[] = null;
   protected cacheArmorGrpRows: Record<string, any>[] = null;
   protected cacheItemNameRows: Record<string, any>[] = null;
+  /* Npcgrp.dat + npcname-e.dat + entereventgrp.dat, joined by resolveNpc/decodeNpcDefinitions */
+  protected cacheNpcDefinitions: GD.INpcDefinition[] = null;
   /* character index -> the assembled naked-body bundle, filled by precacheCharacters and by
      the first decodeCharacter of that index (in-memory only - see precacheCharacters) */
   protected cacheCharacterBundles = new Map<number, CachedBundle_T>();
@@ -512,6 +517,98 @@ class DecodeEngine {
     this.cacheItemNameRows = file.datarows;
 
     return this.cacheItemNameRows;
+  }
+
+  /* Npcgrp.dat (tag/class/mesh/textures) joined with npcname-e.dat (display name) and
+     entereventgrp.dat (spawn sound/effect/animation) on the npc tag/id. */
+  protected async decodeNpcDefinitions(): Promise<GD.INpcDefinition[]> {
+    if (this.cacheNpcDefinitions) return this.cacheNpcDefinitions;
+
+    const [groups, names, enterEvents] = await Promise.all([
+      new UDataFile(SCHEMA_NPCGRP_DAT, "/assets/system/Npcgrp.dat")
+        .asReadable()
+        .decode(),
+      new UDataFile(SCHEMA_NPCNAME_E_DAT, "/assets/system/npcname-e.dat")
+        .asReadable()
+        .decode(),
+      new UDataFile(SCHEMA_ENTEREVENTGRP_DAT, "/assets/system/entereventgrp.dat")
+        .asReadable()
+        .decode(),
+    ]);
+    const namesById = new Map(
+      names.datarows.map((row: any) => [row.id as number, row.name as string]),
+    );
+    const enterEventsById = new Map<number, GD.INpcEnterEvent>(
+      enterEvents.datarows.map((row: any) => [
+        row.id as number,
+        {
+          sound: row.skill_sound as string,
+          soundVolume: row.sound_vol as number,
+          soundRadius: row.sound_rad as number,
+          isRise: row.isrise as number,
+          spawnType: row.spawn_type as number,
+          effect: row.effect_name as string,
+          animation: row.anim_name as string,
+        },
+      ]),
+    );
+
+    this.cacheNpcDefinitions = groups.datarows.map((row: any) => ({
+      id: row.tag as number,
+      name: namesById.get(row.tag as number) || "",
+      className: row.class as string,
+      mesh: row.mesh as string,
+      textures: [...(row.tex1 as string[]), ...(row.tex2 as string[])].filter(
+        (path) => path && path.toLowerCase() !== "none",
+      ),
+      enterEvent: enterEventsById.get(row.tag as number) || null,
+    }));
+
+    return this.cacheNpcDefinitions;
+  }
+
+  /** Resolves a NPC selector - a numeric id, a numeric-looking string, or a case-insensitive
+   *  exact name match - to its Npcgrp.dat definition. Used by the NPC debug panel's Name/ID field. */
+  public async resolveNpc(selector: string | number): Promise<GD.INpcDefinition> {
+    const definitions = await this.decodeNpcDefinitions();
+
+    if (typeof selector === "number") {
+      const npc = definitions.find((npc) => npc.id === selector);
+
+      if (!npc) throw new Error(`NPC ID '${selector}' does not exist.`);
+
+      return npc;
+    }
+
+    const name = selector.trim().toLowerCase();
+
+    if (name.length === 0) throw new Error("NPC name cannot be empty.");
+
+    if (/^\d+$/.test(name)) {
+      const id = Number(name);
+      const npc = definitions.find((npc) => npc.id === id);
+
+      if (!npc) throw new Error(`NPC ID '${selector}' does not exist.`);
+
+      return npc;
+    }
+
+    const matches = definitions.filter(
+      (npc) => npc.name.trim().toLowerCase() === name,
+    );
+
+    if (matches.length === 0)
+      throw new Error(`NPC name '${selector}' does not exist.`);
+    if (matches.length > 1)
+      console.warn(
+        `NPC name '${selector}' matches IDs ${matches.map((npc) => npc.id).join(", ")}; spawning ID ${matches[0].id}.`,
+      );
+
+    return matches[0];
+  }
+
+  public listNpcs(): Promise<GD.INpcDefinition[]> {
+    return this.decodeNpcDefinitions();
   }
 
   /* hair carries its own style and colour axes - the face texture only ever names the head */
@@ -1036,11 +1133,7 @@ class DecodeEngine {
     npcId: number = null,
     includeAnimations: boolean = true,
   ): Promise<DecodeLibrary> {
-    /* both of these need machinery from a later phase, not a silent no-op */
-    if (npcId !== null)
-      throw new Error(
-        `NPC '${npcId}' cannot be decoded yet - NPC resolution (npcgrp.dat) lands in Phase 5.`,
-      );
+    /* scriptClassPath still needs machinery from a later phase, not a silent no-op */
     if (scriptClassPath)
       throw new Error(
         `Script-bound mesh '${packageName}.${meshName}' cannot be decoded yet - UnrealScript classes land in Phase 4.`,
