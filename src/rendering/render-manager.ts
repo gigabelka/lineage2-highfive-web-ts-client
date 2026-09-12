@@ -388,9 +388,9 @@ class RenderManager implements IPhysicsHost {
   public readonly collisionWorld: CollisionWorld;
 
   /**
-   * Live pawns other than the player (NPCs land in Phase 5). Per the port plan a pawn lives under
-   * its containing `SectorObject.pawns` group, never directly in `scene`, so sector streaming owns
-   * its lifetime. The player is the deliberate exception and stays parented to `scene`.
+   * Live pawns other than the player (NPCs land in Phase 5). A pawn lives under its containing
+   * `SectorObject.pawns` group when one is streamed in, so sector streaming owns its lifetime;
+   * otherwise (and always for the player) it is parented directly to `scene` - see `addPawn`.
    */
   public readonly pawns = new Set<BaseActor>();
 
@@ -398,6 +398,14 @@ class RenderManager implements IPhysicsHost {
   protected spawnedNpc: BaseActor | null = null;
   protected followPlayerEnabled = false;
   protected npcSpawnRequest = 0;
+
+  /** The boot-time hardcoded player spawn point sits near the active debug camera preset, which
+   * is an aerial shot with no ground anywhere near it (real terrain is >1000 units straight down) -
+   * gravity would otherwise carry the player out of frame the instant its sector's collision
+   * streams in. `setFlying(true)` at spawn (constructor) holds it in place until the player's
+   * first click-to-move, at which point `onHandleMouseUp` releases it back to normal physics.
+   * See "player and NPC not visible" fix. */
+  protected playerSpawnReleased = false;
 
   /** Physics components registered with this manager; it plays the donor project's PhysicsManager role. */
   protected readonly physicsComponents = new Set<IPhysicsComponent<any>>();
@@ -720,12 +728,18 @@ class RenderManager implements IPhysicsHost {
     // this.player.visible = false;
     // this.player.position.set(-87063.33997244012, -3257.2213744465607, 239964.66910649382);   // outside village
     // this.player.position.set(-87063.33997244012, -3637.2213744465607, 239964.66910649382);   // outside village
-    this.player.position.set(
-      -84272.02537263982,
-      -3730.723876953125,
-      245391.89904573155,
-    ); // near church
+    // near church - axes in the old (x, z, y) order, NOT this file's (x, y, z); re-derive before
+    // re-enabling or the player ends up ~245k units above empty space again (see "player and NPC
+    // not visible" fix).
+    // this.player.position.set(-84272.02537263982, -3730.723876953125, 245391.89904573155);
     // this.player.position.set(-85824.17160558623, -2420.568413807578+100, 247100.09013224754); // on the hill
+
+    // in front of the active camera preset ("tower outside", Cruma). This spot is a floating
+    // aerial vantage - real ground is >1000 units straight down, well outside the camera's view -
+    // so the player is held with setFlying(true) rather than left to fall out of frame; the first
+    // click-to-move (onHandleMouseUp) releases it back to normal ground physics.
+    this.player.position.set(13584.5, 114414.37, -3472.6);
+    this.player.setFlying(true);
 
     addResizeListeners(this);
   }
@@ -1194,12 +1208,21 @@ class RenderManager implements IPhysicsHost {
         (i) => (i.object as any).isCollidable,
       );
 
-      if (collidable)
+      if (collidable) {
+        // Release the boot-time floating spawn (see the constructor and playerSpawnReleased doc
+        // comment) the first time the player is sent somewhere - from here on it falls/walks like
+        // any other click-to-move destination.
+        if (!this.playerSpawnReleased) {
+          this.playerSpawnReleased = true;
+          this.player.setFlying(false);
+        }
+
         // this.player.getRigidbody().setTranslation(
         //     new Vector3().addVectors(intersection.point, new Vector3(0, 100 * 1, 0)),
         //     true
         // );
         this.player.goTo(collidable.point);
+      }
 
       // console.log(intersection);
 
@@ -1402,17 +1425,22 @@ class RenderManager implements IPhysicsHost {
   // --- pawns ------------------------------------------------------------------------------
 
   /**
-   * Parents the pawn under the containing sector's `pawns` group (never `scene`) so unloading
-   * that sector takes its pawns with it. Phase 5 hangs real NPC spawning off this.
+   * Parents the pawn under the containing sector's `pawns` group so unloading that sector takes
+   * its pawns with it. When the spawn point's sector has not streamed in yet (map edge, a debug
+   * spawn ahead of the camera before its sector loaded), falls back to `scene` directly - same as
+   * the player ([render-manager.ts] constructor) - rather than silently dropping the pawn: it used
+   * to `return` early here with no error, leaving a fully decoded, animated actor parented to
+   * nothing and never rendered. `updatePawnVisibility`'s frustum pass already handles any pawn
+   * outside a `SectorObject` ancestor, so no visibility changes were needed for this fallback.
    */
   public addPawn(pawn: BaseActor): void {
     if (this.pawns.has(pawn)) return;
 
     const sector = this.getSector(pawn.position);
 
-    if (!sector) return;
+    if (sector) sector.pawns.add(pawn);
+    else this.scene.add(pawn);
 
-    sector.pawns.add(pawn);
     this.pawns.add(pawn);
     this.registerObjectComponents(pawn);
   }

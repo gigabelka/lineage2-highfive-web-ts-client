@@ -21,7 +21,7 @@ const tmpCameraPosition = new Vector3();
 const tmpAttachMatrix = new Matrix4();
 const tmpNpcFloorStart = new Vector3();
 const npcFloorDirection = new Vector3(0, 0, -1);
-const npcSpawnOffset = new Vector3(-600, -600, 0);
+const tmpNpcSpawnDir = new Vector3();
 
 const FAILED_SECTOR_RETRY_MS = 30_000;
 const RETIRED_SECTOR_DISPOSE_MS = 30_000;
@@ -32,6 +32,7 @@ const STATIC_MESH_BUILD_FRAME_MS = 2;
 const BIND_POSE_EPSILON = 1e-3;
 const DEFAULT_CHAR_INDEX = 1;
 const NPC_SPAWN_FLOOR_DISTANCE = 2000;
+const NPC_SPAWN_FORWARD_DISTANCE = 600;
 /** Ten character decodes at once starve the shared decode-worker pool - see AssetManager.simulatePawns. */
 const PAWN_DECODE_CONCURRENCY = 3;
 const SIMULATE_PAWN_SPREAD = 400;
@@ -489,13 +490,28 @@ class AssetManager {
 
     const actor = new BaseActor(renderManager);
 
-    /* The player's own position is a boot-time placeholder (`RenderManager`'s hardcoded "near
-       church" spot) that the camera does not track - sector streaming follows the camera
-       (`AssetManager.tick`'s prefetch), so colliders only exist around it. Falling back to the
-       player position here used to spawn NPCs into unloaded space with nothing under them. */
+    /* The player's own position is a boot-time placeholder that the camera does not track -
+       sector streaming follows the camera (`AssetManager.tick`'s prefetch), so colliders only
+       exist around it. Falling back to the player position here used to spawn NPCs into unloaded
+       space with nothing under them. Spawning at a fixed offset used to land the NPC beside or
+       behind the camera depending on which way it was facing - project the camera's own look
+       direction (flattened to the XY plane, since spawn height is settled by the floor snap
+       below) instead, so the NPC always lands in front of it. */
     actor.name = npc.name || `Npc${npc.id}`;
-    actor.position.copy(position || renderManager.camera.position);
-    if (!position) actor.position.add(npcSpawnOffset);
+
+    if (position) {
+      actor.position.copy(position);
+    } else {
+      renderManager.camera.getWorldDirection(tmpNpcSpawnDir);
+      tmpNpcSpawnDir.z = 0;
+
+      if (tmpNpcSpawnDir.lengthSq() < 1e-6) tmpNpcSpawnDir.set(1, 0, 0);
+      else tmpNpcSpawnDir.normalize();
+
+      actor.position
+        .copy(renderManager.camera.position)
+        .addScaledVector(tmpNpcSpawnDir, NPC_SPAWN_FORWARD_DISTANCE);
+    }
 
     try {
       await this.loadSkeletalActor(
@@ -537,6 +553,13 @@ class AssetManager {
           `[npc] '${npc.id}' (${npc.name}) has no floor below its spawn position - leaving it unsnapped.`,
         );
       else actor.position.copy(floor.location);
+
+      /* Debug spawns land near whatever the camera happens to be looking at, which is sometimes a
+         floating debug vantage with no ground for a long way down (see the player's own spawn
+         fix in RenderManager) - once the sector's collision streams in, gravity would otherwise
+         carry the NPC out of frame while nobody asked it to go anywhere. setFlying(true) holds it
+         where it visibly landed; AI movement (Follow Player, Attack) still works while flying. */
+      actor.setFlying(true);
     }
 
     try {
@@ -589,6 +612,10 @@ class AssetManager {
         pawn.position.copy(renderManager.player.position);
         pawn.position.x += (Math.random() - 0.5) * SIMULATE_PAWN_SPREAD;
         pawn.position.y += (Math.random() - 0.5) * SIMULATE_PAWN_SPREAD;
+        // Matches the player's own boot-time spawn (RenderManager constructor): near the debug
+        // camera preset there may be no ground for a long way down, so hold these at spawn height
+        // instead of letting gravity carry them out of frame once collision streams in.
+        pawn.setFlying(true);
 
         await this.loadCharacter(
           renderManager,

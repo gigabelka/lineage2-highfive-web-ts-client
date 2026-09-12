@@ -221,10 +221,22 @@ abstract class UMeshAnimation extends UObject {
 
     for (let i = 0; i < count; i++) {
       const notify = sequence.notifications.getElem(i);
-      const notifyObject =
-        notify.notifyObjectId === 0
-          ? null
-          : this.pkg.fetchObject(notify.notifyObjectId).loadSelf();
+      let notifyObject: UObject = null;
+
+      if (notify.notifyObjectId !== 0) {
+        try {
+          notifyObject = this.pkg.fetchObject(notify.notifyObjectId).loadSelf();
+        } catch (e) {
+          /* A single unresolvable notify object (unimplemented AnimNotify subclass, or a
+             cooked import HighFive's script packages don't carry) used to take out the whole
+             character/mesh decode. Same "prefer null over failing everything" treatment as
+             UPackage.fetchObject already gives unresolved imports - drop this one notify's
+             object and keep going. */
+          console.warn(
+            `[anim] '${sequence.name}' notify '${notify.name}' object could not be resolved: ${(e as Error).message}`,
+          );
+        }
+      }
 
       notifications[i] = {
         time: notify.time,
