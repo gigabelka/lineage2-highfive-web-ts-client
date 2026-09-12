@@ -26,7 +26,7 @@ async function startCore() {
     },
     cache: {
       enabled: true,
-      version: 12, // bump when decode logic changes, invalidates all previously cached sectors
+      version: 13, // bump when decode logic changes, invalidates all previously cached sectors
     },
     decodeWorkerPoolSize: 3, // num workers, 0 will run on main thread
     textures,

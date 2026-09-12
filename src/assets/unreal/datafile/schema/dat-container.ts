@@ -38,6 +38,44 @@ class UTF16ContainerType implements IDatContainerType {
   }
 }
 
+/** A run of ASCF strings, uint32-counted (e.g. Npcgrp.dat's HighFive-only NPC dialogue lines). */
+class ASCFArrayContainerType implements IDatContainerType {
+  public isContainerType = true;
+
+  public read(pkg: C.UEncodedFile): string[] {
+    const count = pkg.read("uint32");
+    const elements = new Array<string>(count);
+
+    for (let i = 0; i < count; i++) elements[i] = new ASCFType().read(pkg);
+
+    return elements;
+  }
+}
+
+/**
+ * Wraps another container, read only when an earlier field of the same row equals
+ * `whenFieldEquals` - otherwise the field is absent from the row entirely (zero bytes), not
+ * merely empty. Npcgrp.dat's HighFive rows carry a flag (named `UNK1` in the schema) that gates
+ * two arrays this way: present when the flag is 0, absent for every other value observed so far.
+ */
+class ConditionalContainerType implements IDatContainerType {
+  public isContainerType = true;
+
+  protected field: string;
+  protected whenFieldEquals: number;
+  protected inner: IDatContainerType;
+
+  public constructor(field: string, whenFieldEquals: number, inner: IDatContainerType) {
+    this.field = field;
+    this.whenFieldEquals = whenFieldEquals;
+    this.inner = inner;
+  }
+
+  public read(pkg: C.UEncodedFile, values: Record<string, any>): any {
+    return values[this.field] === this.whenFieldEquals ? this.inner.read(pkg, values) : [];
+  }
+}
+
 /**
  * A run of UTF-16 strings whose length is a size, or the value of an earlier field of the
  * same row - chargrp.dat sizes its arrays with cnt_* columns and the body arrays with 4.
@@ -95,7 +133,11 @@ class NumberContainerType implements IDatContainerType {
   }
 
   public read(pkg: C.UEncodedFile): number[] {
-    const count = pkg.read("uint8");
+    /* compat32, not uint8: the reference reads this count the same way as every other array in
+       the format. Every count observed here so far has been small (2-6), so this was never wrong
+       in practice, but a uint8 cap silently misreads anything at/above 0x40 (the compat32
+       continuation bit). */
+    const count = pkg.read("compat32");
 
     if (count === 0) return [];
 
@@ -111,6 +153,8 @@ class NumberContainerType implements IDatContainerType {
 export {
   ASCFType,
   UTF16ContainerType,
+  ASCFArrayContainerType,
+  ConditionalContainerType,
   UTF16SizedContainerType,
   SizedContainerType,
   NumberContainerType,

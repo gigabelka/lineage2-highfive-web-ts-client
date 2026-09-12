@@ -615,21 +615,36 @@ function walkLodModel(r: Reader, log: (s: string) => void, index: number, lodEnd
       return null;
     }
 
-    // The first int16 is a material index; a section whose material does not resolve means the
-    // 18-byte stride is wrong. Report rather than bail - a wrong stride is still diagnostic.
+    // Every field is a WORD, not SWORD - a soft section leaves minStreamIndex/boneIndex/fE unset
+    // as 0xfefe, which would come back negative and wrongly look "out of range" as int16. The
+    // material index is still the best desync signal: a wrong stride shows up as a resolveable-
+    // looking value here going implausible.
     let bad = 0;
     const materials: number[] = [];
+    let boneMapTotal = 0;
 
     for (let i = 0; i < n; i++) {
-      materials.push(r.i16());
-      if (materials[i] < 0 || materials[i] > 32) bad++;
-      for (let f16 = 1; f16 < 9; f16++) r.i16();
+      materials.push(r.u16());
+      if (materials[i] > 32) bad++;
+      for (let f16 = 1; f16 < 9; f16++) r.u16();
+
+      // HighFive only: each section carries its own bone palette after the 9 WORDs.
+      const boneMapAt = r.tell();
+      const boneMapCount = r.compat32();
+
+      if (boneMapCount < 0 || boneMapCount > 256) {
+        log(`${indent}  BAD ${which}[${i}].boneMap.count = ${boneMapCount} @${boneMapAt} (implausible)`);
+        return null;
+      }
+
+      r.skip(boneMapCount * 4);
+      boneMapTotal += boneMapCount;
     }
 
     log(
-      `${indent}  ${which}.count = ${n} @${at} -> ${r.tell()} (18B each, ${bad}/${
+      `${indent}  ${which}.count = ${n} @${at} -> ${r.tell()} (18B + boneMap each, ${bad}/${
         materials.length || 0
-      } out-of-range materialIndex${bad ? ` e.g. ${materials.slice(0, 6).join(",")}` : ""})`,
+      } out-of-range materialIndex${bad ? ` e.g. ${materials.slice(0, 6).join(",")}` : ""}, ΣboneMap=${boneMapTotal})`,
     );
   }
 

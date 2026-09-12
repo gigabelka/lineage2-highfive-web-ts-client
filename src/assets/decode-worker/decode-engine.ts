@@ -14,6 +14,7 @@ import {
   CHARACTER_ARMOR_GROUPS,
   CHARACTER_ARMOR_SLOTS,
   SCHEMA_NPCGRP_DAT,
+  npcgrpRowStartsAt,
   SCHEMA_NPCNAME_E_DAT,
   SCHEMA_ENTEREVENTGRP_DAT,
 } from "@unreal/datafile/schema/schema-types";
@@ -517,7 +518,7 @@ class DecodeEngine {
     if (this.cacheNpcDefinitions) return this.cacheNpcDefinitions;
 
     const [groups, names, enterEvents] = await Promise.all([
-      new UDataFile(SCHEMA_NPCGRP_DAT, "/assets/system/Npcgrp.dat")
+      new UDataFile(SCHEMA_NPCGRP_DAT, "/assets/system/Npcgrp.dat", null, npcgrpRowStartsAt)
         .asReadable()
         .decode(),
       new UDataFile(SCHEMA_NPCNAME_E_DAT, "/assets/system/npcname-e.dat")
@@ -527,6 +528,15 @@ class DecodeEngine {
         .asReadable()
         .decode(),
     ]);
+
+    /* `partial` means some rows did not fit the schema - the catalog below is real but
+       incomplete, not empty. Say so once here rather than let `resolveNpc` fail silently with
+       "does not exist" for an NPC that simply landed in a skipped/truncated row. */
+    if (groups.partial)
+      console.warn(
+        `Npcgrp.dat: decoded ${groups.datarows.length} row(s) - some rows did not fit the schema, see the warnings above.`,
+      );
+
     const namesById = new Map(
       names.datarows.map((row: any) => [row.id as number, row.name as string]),
     );

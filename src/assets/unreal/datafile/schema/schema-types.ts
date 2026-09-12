@@ -1,4 +1,4 @@
-export { SCHEMA_NPCGRP_DAT } from "./npcgrp.schema";
+export { SCHEMA_NPCGRP_DAT, npcgrpRowStartsAt } from "./npcgrp.schema";
 export { SCHEMA_NPCNAME_E_DAT } from "./npcname-e.schema";
 export { SCHEMA_ENTEREVENTGRP_DAT } from "./entereventgrp.schema";
 export { SCHEMA_MUSICINFO_DAT } from "./musicinfo.schema";

@@ -112,9 +112,30 @@ class AssetLoader extends AAssetLoader<
       for (const entry of (cur.imports ?? []).filter(
         (imp: C.UImport) => imp.className !== "Package",
       )) {
+        /* idPackage === 0 means this import has no containing group/package of its own (a
+           native/engine reference embedded directly, e.g. a builtin class) - there is no external
+           package to resolve here. `getImportEntry(0)` returns null by design (see
+           un-package.ts), so without this guard the walk below reads `.idPackage` off it and
+           throws - vendor's own `AAssetLoader.load()` has the identical guard; this
+           project-local reimplementation of the same walk had dropped it. */
+        if (entry.idPackage === 0) continue;
+
         let ep = cur.getImportEntry(entry.idPackage);
 
         while (ep.idPackage !== 0) ep = cur.getImportEntry(ep.idPackage);
+
+        /* Some cooked packages carry import entries whose parent chain walks up to a name that
+           is not a real package file (e.g. a literal "Class" root) - an import-table shape this
+           port doesn't model. `getPackage` throws on that; vendor's own `AAssetLoader.load()`
+           checks `hasPackage` first and skips instead (same comment there), so this
+           project-local reimplementation of the same walk does too - otherwise one such entry
+           anywhere in a mesh's import table takes the whole mesh down. */
+        if (!this.hasPackage(ep.objectName, entry.className)) {
+          console.warn(
+            `AssetLoader: '${cur.path}' references missing package '${ep.objectName}' for type '${entry.className}' - skipping dependency.`,
+          );
+          continue;
+        }
 
         const dep = this.getPackage(
           ep.objectName,

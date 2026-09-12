@@ -135,56 +135,68 @@ class BufferValue<T extends C.ValueTypeNames_T = C.ValueTypeNames_T> {
     if (buffer.byteLength < offset + this.type.bytes)
       throw new Error("Out of bounds");
 
+    /* `char`/`utf16` size themselves off a length prefix read from the buffer and stash it on
+       `this.type.bytes` before the DataView below can fail (a corrupt/misaligned length prefix
+       throws there). `type` is shared across every caller that reads the same type name through
+       `UEncodedFile`'s one-instance-per-type-name cache (`buffInstances`), so leaving a failed
+       read's `type.bytes` in place poisons every later read of that type for the rest of the
+       process - not just this call. Restore it on any throw so a bad row/field only fails itself. */
+    const revertBytes = this.type.bytes;
     let byteOffset = 0;
 
-    if (this.type.name === "char") {
-      const length = new BufferValue(compat32);
-      const readBytes = length.readValue(buffer, offset);
+    try {
+      if (this.type.name === "char") {
+        const length = new BufferValue(compat32);
+        const readBytes = length.readValue(buffer, offset);
 
-      byteOffset = length.value > 0 ? readBytes + 1 : readBytes; // add delimiter unless empty
-      offset = offset + byteOffset - readBytes;
+        byteOffset = length.value > 0 ? readBytes + 1 : readBytes; // add delimiter unless empty
+        offset = offset + byteOffset - readBytes;
 
-      this.type.bytes = Math.max(length.value - 1, 0);
-    } else if (this.type.name === "compat32") {
-      // Fast compat32 reading using direct DataView access
-      const view = new DataView(buffer, offset);
-      let b = view.getUint8(0);
-      const sign = b & 0x80; // sign bit
-      let shift = 6;
-      let r = b & 0x3f;
-      let bytesRead = 1;
+        this.type.bytes = Math.max(length.value - 1, 0);
+      } else if (this.type.name === "compat32") {
+        // Fast compat32 reading using direct DataView access
+        const view = new DataView(buffer, offset);
+        let b = view.getUint8(0);
+        const sign = b & 0x80; // sign bit
+        let shift = 6;
+        let r = b & 0x3f;
+        let bytesRead = 1;
 
-      if (b & 0x40) {
-        // has 2nd byte
-        do {
-          if (bytesRead >= 5) break; // Prevent overflow
-          b = view.getUint8(bytesRead++);
-          r |= (b & 0x7f) << shift;
-          shift += 7;
-        } while (b & 0x80); // has more bytes
+        if (b & 0x40) {
+          // has 2nd byte
+          do {
+            if (bytesRead >= 5) break; // Prevent overflow
+            b = view.getUint8(bytesRead++);
+            r |= (b & 0x7f) << shift;
+            shift += 7;
+          } while (b & 0x80); // has more bytes
+        }
+
+        r = sign ? -r : r;
+        this.bytes.setInt32(0, r, this.endianess === "little");
+        return bytesRead;
+      } else if (this.type.name === "utf16") {
+        const length = new BufferValue(uint32);
+
+        length.readValue(buffer, offset);
+        byteOffset = length.type.bytes + 1;
+        offset = offset + byteOffset - 1;
+
+        this.type.bytes = length.value;
+
+        this.type.bytes = this.type.bytes;
+        byteOffset = byteOffset - 1;
       }
 
-      r = sign ? -r : r;
-      this.bytes.setInt32(0, r, this.endianess === "little");
-      return bytesRead;
-    } else if (this.type.name === "utf16") {
-      const length = new BufferValue(uint32);
+      this.bytes = new DataView(buffer, offset, this.type.bytes);
 
-      length.readValue(buffer, offset);
-      byteOffset = length.type.bytes + 1;
-      offset = offset + byteOffset - 1;
+      //
 
-      this.type.bytes = length.value;
-
-      this.type.bytes = this.type.bytes;
-      byteOffset = byteOffset - 1;
+      return this.bytes.byteLength + byteOffset;
+    } catch (e) {
+      this.type.bytes = revertBytes;
+      throw e;
     }
-
-    this.bytes = new DataView(buffer, offset, this.type.bytes);
-
-    //
-
-    return this.bytes.byteLength + byteOffset;
   }
 
   public get string(): string {
