@@ -5,9 +5,9 @@ import UConfigWarrior, {
   WarriorAnimations_T,
 } from "@unreal/conf-files/un-conf-warrior";
 import UDataFile from "@unreal/datafile/un-datafile";
+import { decodeCharGrpRows } from "@unreal/datafile/chargrp-reader";
 import {
   SCHEMA_MUSICINFO_DAT,
-  SCHEMA_CHARGRP_DAT,
   CHARGRP_RECORD_COUNT,
   SCHEMA_ARMORGRP_DAT,
   SCHEMA_ITEMNAME_E_DAT,
@@ -476,15 +476,7 @@ class DecodeEngine {
   protected async decodeCharGrp(): Promise<Record<string, any>[]> {
     if (this.cacheCharGrpRows) return this.cacheCharGrpRows;
 
-    const file = await new UDataFile(
-      SCHEMA_CHARGRP_DAT,
-      "/assets/system/chargrp.dat",
-      CHARGRP_RECORD_COUNT,
-    )
-      .asReadable()
-      .decode();
-
-    this.cacheCharGrpRows = file.datarows;
+    this.cacheCharGrpRows = await decodeCharGrpRows("/assets/system/chargrp.dat");
 
     return this.cacheCharGrpRows;
   }

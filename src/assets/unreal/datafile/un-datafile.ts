@@ -45,10 +45,8 @@ class UDataFile extends UEncodedFile {
                     values[name] = loadSingleValue(readable, type, values);
                 }
             } catch (e) {
-                /* some rows carry per-class fields the schema doesn't yet model (e.g. chargrp.dat's
-                   attack-sound counts, which aren't consistently laid out row-to-row - see
-                   RawStringRunType/ResyncingCountedArrayType in ./schema/dat-container.ts) - stop
-                   with whatever earlier rows decoded cleanly rather than throwing the whole table away. */
+                /* some rows carry per-class fields the schema doesn't yet model - stop with whatever
+                   earlier rows decoded cleanly rather than throwing the whole table away. */
                 console.warn(`UDataFile '${this.path}': row ${i}/${rowCount} failed to decode, keeping the ${rows.length} row(s) decoded so far.`, e);
                 break;
             }

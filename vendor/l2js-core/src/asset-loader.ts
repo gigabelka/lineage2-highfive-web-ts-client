@@ -155,6 +155,11 @@ abstract class AAssetLoader<
       for (const entry of pkg.imports.filter(
         (imp) => imp.className !== "Package",
       )) {
+        /* idPackage === 0 means this import has no containing group/package of its own
+           (a native/engine reference embedded directly, e.g. a builtin class) - there is no
+           external package to resolve or load for it. */
+        if (entry.idPackage === 0) continue;
+
         let entrypackage = pkg.getImportEntry(entry.idPackage);
 
         while (entrypackage.idPackage !== 0)
