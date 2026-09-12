@@ -672,7 +672,7 @@ abstract class USkeletalMesh extends ULodMesh {
 
               rot = fixRotation(rot);
 
-              if (boneIndexAnim === 0) rot = rot.conjugate();
+              if (boneIndexAnim > 0) rot = rot.conjugate();
 
               timesRot[j] = time / framerate;
 
@@ -1181,7 +1181,7 @@ function collectSkeleton(refSkeleton: FMeshBone[]): GD.IBoneDecodeInfo[] {
     let bonePos = bone.bonePos.position.clone();
     let boneRot = bone.bonePos.rotation.clone();
 
-    if (boneIndex === 0) boneRot = boneRot.conjugate();
+    if (boneIndex > 0) boneRot = boneRot.conjugate();
 
     bonePos = fixVector(bonePos);
     boneRot = fixRotation(boneRot);
@@ -1287,10 +1287,12 @@ class FBoneCoord {
 }
 
 /* These two are UObjects, so they cannot be built with `new` - only the class the package builds
-   has a layout, and that is what the injected `make` factory returns. */
+   has a layout, and that is what the injected `make` factory returns. No swizzle: bones must
+   decode in the same native UE2 space as mesh vertices (see ue2-conventions.ts) - a prior Y/Z
+   swap here desynced bones from the geometry they deform ("falls apart" mesh bug). */
 function fixVector(v: FVector) {
-  return FVector.make(v.x, v.z, v.y);
+  return FVector.make(v.x, v.y, v.z);
 }
 function fixRotation(v: FQuaternion) {
-  return FQuaternion.make(v.x, v.z, v.y, v.w);
+  return FQuaternion.make(v.x, v.y, v.z, v.w);
 }
