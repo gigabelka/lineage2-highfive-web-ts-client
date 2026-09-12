@@ -125,7 +125,15 @@ class FArrayLazy<
 
     super.load(pkg, tag);
 
-    console.assert(pkg.tell() - this.unkLazyInt === 0);
+    /* Upstream `console.assert` only logs, but this project overrides it to throw. For HighFive
+       skeletal meshes `unkLazyInt` is not the end offset (observed garbage like 0x02000100), so
+       this consistency check aborted every LOD decode. Pass `dontThrow` - the project's own
+       escape hatch - so it stays the soft check it was written as. */
+    console.assert(
+      pkg.tell() - this.unkLazyInt === 0,
+      `FArrayLazy: unkLazyInt=${this.unkLazyInt} != tell=${pkg.tell()}`,
+      true,
+    );
 
     return this;
   }
@@ -462,7 +470,15 @@ class FPrimitiveArrayLazy<
 
     super.load(pkg, tag);
 
-    console.assert(pkg.tell() - this.unkLazyInt === 0);
+    /* Upstream `console.assert` only logs, but this project overrides it to throw. For HighFive
+       skeletal meshes `unkLazyInt` is not the end offset (observed garbage like 0x02000100), so
+       this consistency check aborted every LOD decode. Pass `dontThrow` - the project's own
+       escape hatch - so it stays the soft check it was written as. */
+    console.assert(
+      pkg.tell() - this.unkLazyInt === 0,
+      `FArrayLazy: unkLazyInt=${this.unkLazyInt} != tell=${pkg.tell()}`,
+      true,
+    );
 
     return this;
   }
