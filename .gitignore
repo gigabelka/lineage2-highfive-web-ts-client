@@ -20,3 +20,8 @@ traces/*
 coverage/
 .eslintcache
 .playwright-mcp/
+# Local credentials for the live-server session (see .env.example)
+.env
+.env.local
+.env.*.local
+!.env.example

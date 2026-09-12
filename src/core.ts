@@ -2,6 +2,8 @@ import RenderManager from "./rendering/render-manager";
 import { BoxHelper } from "three";
 
 import AssetManager from "@client/assets/asset-manager";
+import attachNetSession from "@client/game/net-world-bridge";
+import loadNetConfig from "@client/net/config";
 import runSectorPrecache from "@client/sector-precache";
 import RAPIER from "@dimforge/rapier3d";
 
@@ -56,6 +58,17 @@ async function startCore() {
   const renderManager = new RenderManager(viewport, assetManager);
 
   (global as any).renderManager = renderManager;
+
+  /* Live-server session. Fire-and-forget on purpose: the handshake runs concurrently with
+     asset initialization below (the slow part), so the coordinates normally land before
+     startRendering() and the first AssetManager.tick. Nothing here is awaited - a dead server,
+     a missing .env or a bad password must never stop the renderer from booting; failures show
+     up in the HUD, in one console.error, and in `l2Session.snapshot`. */
+  const netConfig = loadNetConfig();
+
+  if (netConfig.enabled) {
+    (global as any).l2Session = attachNetSession(renderManager, netConfig);
+  }
 
   const objectGroup = renderManager.objectGroup;
 

@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import fs from "node:fs";
+import tcpBridgePlugin from "./tools/tcp-bridge-plugin";
 import path from "node:path";
 
 const ROOT = __dirname;
@@ -179,6 +180,9 @@ function devServerPlugin(): Plugin {
 export default defineConfig({
     root: ROOT,
     publicDir: PUBLIC_DIR,
+    // L2_* joins the default VITE_* so src/net/config.ts can read the live-server credentials
+    // from the git-ignored .env. Dev only - see .env.example and src/net/config.ts.
+    envPrefix: ["VITE_", "L2_"],
     define: {
         // webpack's node.global polyfill is gone - src/ has runtime `global` refs
         global: "globalThis"
@@ -218,5 +222,5 @@ export default defineConfig({
         target: "chrome80",
         sourcemap: true
     },
-    plugins: [assetListPlugin(), rawShadersPlugin(), devServerPlugin()]
+    plugins: [assetListPlugin(), rawShadersPlugin(), devServerPlugin(), tcpBridgePlugin()]
 });

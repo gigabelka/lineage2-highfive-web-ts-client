@@ -407,6 +407,10 @@ class RenderManager implements IPhysicsHost {
    * See "player and NPC not visible" fix. */
   protected playerSpawnReleased = false;
 
+  /** The pawn's real collision size, snapshotted before `setFlying(true)` clobbers it - see
+   * `placePlayerAt`. Null when the player is not being held. */
+  protected playerCollisionSize: { radius: number; height: number } | null = null;
+
   /** Physics components registered with this manager; it plays the donor project's PhysicsManager role. */
   protected readonly physicsComponents = new Set<IPhysicsComponent<any>>();
   protected nextPlayerTick = 0;
@@ -738,7 +742,15 @@ class RenderManager implements IPhysicsHost {
     // aerial vantage - real ground is >1000 units straight down, well outside the camera's view -
     // so the player is held with setFlying(true) rather than left to fall out of frame; the first
     // click-to-move (onHandleMouseUp) releases it back to normal ground physics.
+    // Overridden once the network session reports real coordinates - see `placePlayerAt`.
     this.player.position.set(13584.5, 114414.37, -3472.6);
+    /* Snapshot the pristine collision size before setFlying(true) swaps in the wyvern 60/80;
+       setFlying(false) never restores it, so both release paths (click-to-move below and
+       releasePlayerHold) go through restorePlayerCollisionSize. */
+    this.playerCollisionSize = {
+      radius: this.player.getCollisionRadius(),
+      height: this.player.getCollisionHeight(),
+    };
     this.player.setFlying(true);
 
     addResizeListeners(this);
@@ -1215,6 +1227,9 @@ class RenderManager implements IPhysicsHost {
         if (!this.playerSpawnReleased) {
           this.playerSpawnReleased = true;
           this.player.setFlying(false);
+          // setFlying(true) at spawn swapped in the wyvern collider and setFlying(false) does
+          // not restore it; releasePlayerHold's helper does.
+          this.restorePlayerCollisionSize();
         }
 
         // this.player.getRigidbody().setTranslation(
@@ -1313,6 +1328,95 @@ class RenderManager implements IPhysicsHost {
     this.lastRender = currentTime;
 
     requestAnimationFrame(this.onHandleRender.bind(this));
+  }
+
+  /**
+   * Third-person camera offset, taken as the difference between the two hardcoded debug
+   * presets in the constructor (the "tower outside" camera at :578 and the player spawn at
+   * :746). Deriving it rather than typing a second literal keeps the offline preset and the
+   * network placement from drifting apart.
+   */
+  protected static readonly PLAYER_CAMERA_OFFSET = new Vector3(
+    13202.948810614555 - 13584.5,
+    114479.97315173852 - 114414.37,
+    -3573.003864493672 - -3472.6,
+  );
+
+  /**
+   * Place the player - and the camera looking at it - at a world position reported by the game
+   * server. Server world coordinates map 1:1 onto UE2 world space; see `getSectorId` below and
+   * `src/net/world-tile.ts`. Overrides the boot-time debug spawn in the constructor.
+   *
+   * The pawn is left FLYING on purpose: the target sector (and therefore its collision) is
+   * still streaming at this point, so releasing gravity here would drop the character through
+   * nothing for several seconds. `releasePlayerHold` is what hands it back to physics, and
+   * `src/game/net-world-bridge.ts` owns the decision of when.
+   */
+  public placePlayerAt(position: THREE.Vector3, opts?: { moveCamera?: boolean }): void {
+    /* Snapshot the real collision size FIRST: setFlying(true) overwrites it with the wyvern
+       60/80 (pawn-movement-component.ts setCollisionSize call) and setFlying(false) does not
+       put it back. */
+    if (this.playerCollisionSize === null) {
+      this.playerCollisionSize = {
+        radius: this.player.getCollisionRadius(),
+        height: this.player.getCollisionHeight(),
+      };
+    }
+
+    // teleportTo unconditionally sets physicsMode "falling", so setFlying must come after it.
+    this.player.teleportTo(position);
+    this.player.setFlying(true);
+    this.playerSpawnReleased = false;
+
+    if (opts?.moveCamera !== false) {
+      /* Moving the camera is also what starts the streaming: AssetManager.tick reads the camera
+         position every frame and loads the sectors around it - there is no loadAround(x, y, z). */
+      this.camera.position.copy(position).add(RenderManager.PLAYER_CAMERA_OFFSET);
+      this.controls.orbit.target.copy(position);
+      this.camera.lookAt(this.controls.orbit.target);
+      this.controls.orbit.update();
+    }
+
+    this.needsUpdate = true;
+
+    const [sx, sy] = this.getSectorId(position);
+    console.info(
+      `[net] player placed at ${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)} (sector ${sx}_${sy})`,
+    );
+  }
+
+  /**
+   * Hand the player back to normal gravity and collision after `placePlayerAt`, restoring the
+   * collision size `setFlying(true)` overwrote. Safe to call more than once.
+   */
+  public releasePlayerHold(): void {
+    if (this.playerSpawnReleased) return;
+
+    this.playerSpawnReleased = true;
+    this.player.setFlying(false);
+    this.restorePlayerCollisionSize();
+    this.needsUpdate = true;
+
+    console.info("[net] player hold released - gravity and collision are live");
+  }
+
+  /**
+   * Whether a sector id (`"17_25"`, the `maps/17_25.unr` base name) exists in the local asset
+   * install. A narrow read-only window onto the protected `assetManager`, so the network bridge
+   * can tell "still streaming" apart from "this tile was never shipped".
+   */
+  public hasSector(sectorId: string): boolean {
+    return this.assetManager.hasSector(sectorId);
+  }
+
+  /** Undo the wyvern-sized collider `setFlying(true)` installs. No-op if nothing was snapshotted. */
+  protected restorePlayerCollisionSize(): void {
+    const size = this.playerCollisionSize;
+
+    if (size === null) return;
+
+    this.playerCollisionSize = null;
+    this.player.setCollisionSize(size.radius, size.height);
   }
 
   public enableZoneCulling = true;

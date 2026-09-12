@@ -67,3 +67,50 @@ body {
         }
     }
 }
+
+/* Connection-status overlay for the live-server session (src/net/net-hud.ts). Bottom-left is
+   the only free corner: stats.dom sits top-left and lil-gui top-right. */
+.l2-net-hud {
+    position: fixed;
+    bottom: 8px;
+    left: 8px;
+    z-index: 10001;
+    pointer-events: none;
+    padding: 6px 8px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #cfe3ff;
+    font: 11px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+    &--live {
+        border-color: rgba(120, 255, 160, 0.4);
+    }
+
+    &--failed {
+        border-color: rgba(255, 110, 110, 0.6);
+        color: #ffb0b0;
+    }
+
+    &__body {
+        margin: 0;
+        font: inherit;
+        white-space: pre;
+    }
+
+    &__reconnect {
+        pointer-events: auto;
+        margin-top: 6px;
+        padding: 2px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.08);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.16);
+        }
+    }
+}
