@@ -2,6 +2,20 @@ import BufferValue from "../buffer-value";
 import UExport from "./un-export";
 import FArrayPrimitive from "./un-array-primitive";
 
+/*
+ * UObject subclasses cannot be built with `new` - only the class a package dynamically builds
+ * (via UStruct.buildClass) has a working layout, and that class is what the `make` factory
+ * injected by `onClassCreated` returns. Plain IConstructable helpers (FWeightIndex etc.) have no
+ * `make` and are constructed normally. Prefer `make` when the element type provides one, so
+ * arrays of native structs (FVector/FColor/FQuaternion...) decode instead of throwing
+ * "Layout for 'X' must be overloaded by the package".
+ */
+function createElement(Constructor: { new (...pars: any): any }): any {
+  const make = (Constructor as any)?.make;
+
+  return typeof make === "function" ? make() : new Constructor();
+}
+
 class FArray<
   T extends
     | C.UObject
@@ -62,7 +76,7 @@ class FArray<
 
     for (let i = 0, len = this.length; i < len; i++) {
       if (!hasTag || nativeElements) {
-        this[i] = new (this.Constructor as any)().load(pkg);
+        this[i] = createElement(this.Constructor).load(pkg);
         continue;
       }
 
@@ -72,7 +86,7 @@ class FArray<
       exp.objectName = `${tag.name}[${i + 1}/${count}]`;
       exp.offset = pkg.tell();
 
-      this[i] = new (this.Constructor as any)().load(pkg, exp);
+      this[i] = createElement(this.Constructor).load(pkg, exp);
     }
 
     if (hasTag) console.assert(pkg.tell() - beginIndex - tag.dataSize === 0);

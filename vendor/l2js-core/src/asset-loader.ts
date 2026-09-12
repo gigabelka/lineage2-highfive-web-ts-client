@@ -168,10 +168,22 @@ abstract class AAssetLoader<
         const packageName = entrypackage.objectName;
         const className = entry.className;
 
-        if (!this.hasPackage(packageName, className))
-          throw new Error(
-            `Package '${packageName}' for type '${className}' does not exist.`,
+        /*
+         * Some cooked packages carry import entries whose parent chain ends at a name that is
+         * not a real package file (e.g. LineageWeapons.ukx imports resolving to a literal
+         * "Class" root, alongside sibling entries pointing at each other) - an import-table
+         * layout this port doesn't model yet. One such entry used to abort the whole load, so a
+         * single unmodelled table took out every consumer of that package (character/NPC
+         * loading included). Skip the unresolvable reference instead; if something later
+         * actually needs an object out of it, `fetchObject` resolves it by name and fails there
+         * with a precise error.
+         */
+        if (!this.hasPackage(packageName, className)) {
+          console.warn(
+            `AssetLoader: '${pkg.path}' references missing package '${packageName}' for type '${className}' - skipping dependency.`,
           );
+          continue;
+        }
 
         const dependency = this.getPackage(packageName, className);
 
