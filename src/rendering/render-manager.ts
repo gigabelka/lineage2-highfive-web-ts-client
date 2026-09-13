@@ -68,6 +68,7 @@ import type {
   IPhysicsComponent,
   IPhysicsHost,
 } from "@client/physics/components/physics-component";
+import { ColliderComponent } from "@client/physics/components/physics-component";
 
 const gui = new GUI({ autoPlace: false, width: 300 });
 Object.assign(gui.domElement.style, {
@@ -547,7 +548,12 @@ class RenderManager implements IPhysicsHost {
 
     this.physicsWorld = new RAPIER.World(new Vector3(0, 0, -9.8 * 100));
 
-    // Phase 1 ships only the Rapier backend; the analytical "ue" backend lands in Phase 2.
+    // The analytical "ue" backend (collision-primitive.ts) is now the default - it's fully
+    // implemented and tested (collision-primitive.test.ts) and, unlike Rapier's static heightfield
+    // collider, actually reflects Terrain.refreshCollisionGeometry()'s post-stitch vertex data
+    // (Rapier's terrain collider is built once at decode time and never updated, so it silently
+    // drifts from the visual mesh at every tile seam stitchTerrains() patches).
+    // ?collisionBackend=rapier/compare on the URL still switches it for debugging/comparison.
     const backendOverride = new URLSearchParams(location.search).get(
       "collisionBackend",
     );
@@ -556,7 +562,7 @@ class RenderManager implements IPhysicsHost {
       backendOverride === "rapier" ||
       backendOverride === "compare"
         ? backendOverride
-        : "rapier";
+        : "ue";
 
     this.collisionWorld = new CollisionWorld(
       this.physicsWorld,
@@ -3303,6 +3309,18 @@ class RenderManager implements IPhysicsHost {
 
   protected collectColliders() {
     this.scene.traverse((obj: ICollidable) => {
+      // batchTerrainSectors merges >=2 terrain tiles into one plain, non-ICollidable mesh and
+      // removes the original collidable Terrain nodes from the scene graph entirely (kept only
+      // as this back-reference) - without this branch, batched terrain never gets a collider and
+      // the pawn falls straight through open ground. See addSector's identical branch.
+      if ((obj as any).isTerrainBatch) {
+        for (const terrainSector of ((obj as any).sectors as ICollidable[]) ?? []) {
+          this.collidables.push(terrainSector);
+          this.registerCollider(terrainSector);
+        }
+        return;
+      }
+
       if (!obj.isCollidable) return;
 
       // if (this.collidables.length > 1) return;
@@ -3378,6 +3396,16 @@ class RenderManager implements IPhysicsHost {
     // startRendering()'s collectColliders() only ever sees the scene as it stands at boot; every
     // streamed-in sector registers here (and unregisters in removeSector).
     sector.traverse((child: ICollidable) => {
+      // See collectColliders' comment: batched terrain tiles aren't ICollidable themselves and
+      // their originals were removed from the tree, so they'd otherwise never get a collider.
+      if ((child as any).isTerrainBatch) {
+        for (const terrainSector of ((child as any).sectors as ICollidable[]) ?? []) {
+          this.collidables.push(terrainSector);
+          this.registerCollider(terrainSector);
+        }
+        return;
+      }
+
       if (!child.isCollidable) return;
 
       this.collidables.push(child);
@@ -3595,6 +3623,14 @@ class RenderManager implements IPhysicsHost {
     // flips true the instant staticMeshGroup is attached, so its colliders must exist by the
     // time this function returns or the pawn falls through geometry that streamed in late.
     sector.staticMeshGroup.traverse((child: ICollidable) => {
+      if ((child as any).isTerrainBatch) {
+        for (const terrainSector of ((child as any).sectors as ICollidable[]) ?? []) {
+          this.collidables.push(terrainSector);
+          this.registerCollider(terrainSector);
+        }
+        return;
+      }
+
       if (!child.isCollidable) return;
 
       this.collidables.push(child);
@@ -3635,6 +3671,19 @@ class RenderManager implements IPhysicsHost {
     });
 
     sector.traverse((child: ICollidable) => {
+      if ((child as any).isTerrainBatch) {
+        for (const terrainSector of ((child as any).sectors as ICollidable[]) ?? []) {
+          if (!terrainSector.getCollider()) continue;
+
+          const index = this.collidables.indexOf(terrainSector);
+
+          if (index >= 0) this.collidables.splice(index, 1);
+
+          this.unregisterCollider(terrainSector);
+        }
+        return;
+      }
+
       if (!child.isCollidable || !child.getCollider()) return;
 
       const index = this.collidables.indexOf(child);
@@ -3730,6 +3779,14 @@ class RenderManager implements IPhysicsHost {
     if (terrains.length < 2) return;
 
     (window as any).terrainDebug = Terrain.stitchAll(terrains);
+
+    // stitchAll only moves vertices for a seamless look - it never touches collision data, so
+    // without this the pawn falls through exactly where two differently-heighted tiles were
+    // visually patched together (refreshCollisionGeometry's own doc comment names this use case,
+    // but nothing was ever calling it after a stitch pass).
+    for (const terrain of terrains) {
+      terrain.getComponent<ColliderComponent>("collider").refresh(terrain);
+    }
   }
 }
 
