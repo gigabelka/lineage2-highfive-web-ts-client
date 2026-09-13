@@ -208,7 +208,7 @@ export class BaseActor extends GameObject implements ICollidable {
     public getAnimationNames(): string[] { return this.animationComponent.getAnimationNames(); }
     public getIdleAnimationName(): string { return this.animationComponent.getIdleAnimationName(); }
 
-    public goTo(position: Vector3): void { this.movementComponent.goTo(position); }
+    public goTo(position: Vector3): Vector3 | null { return this.movementComponent.goTo(position); }
     public goToActor(actor: Object3D, offset: number = 0): void { this.movementComponent.goToActor(actor, offset); }
     public moveInDirection(direction: Vector3, faceMovement: boolean = true): void { this.movementComponent.moveInDirection(direction, faceMovement); }
     public faceActor(actor: Object3D | null): void { this.movementComponent.faceActor(actor); }

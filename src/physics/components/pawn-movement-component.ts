@@ -1086,14 +1086,17 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
         return null;
     }
 
-    public goTo(position: Vector3) {
-        if (!this.isInteractive()) return;
+    /** Returns the point the pawn will actually walk to (which may differ from `position` - see
+     * `resolveGroundTarget`), or `null` if no movement was started, so callers (e.g. a
+     * click-to-move destination marker) can stay honest about where the pawn is really headed. */
+    public goTo(position: Vector3): Vector3 | null {
+        if (!this.isInteractive()) return null;
 
         const target = this.physicsMode === "flying" || this.physicsMode === "swimming"
             ? position
             : this.resolveGroundTarget(position);
 
-        if (!target) return;
+        if (!target) return null;
 
         console.log(`[actor] goTo from=(${this.position.x}, ${this.position.y}, ${this.position.z}) to=(${target.x}, ${target.y}, ${target.z})`);
         this.actorState.locomotion = true;
@@ -1103,6 +1106,8 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
         this.actorState.desired.offset = 0;
         this.actorState.desired.faceMovement = true;
         this.actorState.desired.faceTarget = null;
+
+        return target;
     }
 
     public goToActor(actor: Object3D, offset: number = 0) {

@@ -54,6 +54,7 @@ import type AssetManager from "@client/assets/asset-manager";
 import InstancedSpriteBatcher from "@client/objects/emitters/instanced-sprite-batcher";
 import MovableObject from "@client/objects/movable-object";
 import RotatingObject from "@client/objects/rotating-object";
+import MoveTargetMarker from "@client/objects/move-target-marker";
 import DisplayGammaPass, { GAMMA_STEPS } from "./display-gamma";
 import type BaseActor from "@client/base-actor";
 import type PawnRenderableComponent from "@client/rendering/components/pawn-renderable-component";
@@ -355,6 +356,16 @@ class RenderManager implements IPhysicsHost {
     shift: false,
   };
   protected isOrbitControls = true;
+  /** Third-person orbit camera keeps re-centering on the player every frame (angle/distance the
+   * user set via drag/wheel is preserved - only the orbit target moves). Separate from
+   * followPlayerEnabled, which is an unrelated NPC-debug-panel toggle. */
+  protected cameraFollowsPlayer = true;
+  private moveMarker: MoveTargetMarker | null = null;
+  /** Left-button pointerdown position, used to tell a click-to-move click apart from a
+   * camera-rotate drag (ZUpOrbitControls also binds left-button drag to orbit rotation). */
+  private groundClickDownX = 0;
+  private groundClickDownY = 0;
+  private static readonly GROUND_CLICK_DRAG_THRESHOLD = 6;
   protected lastRender: number = 0;
   protected readonly _lastListenerPos = new Vector3(
     Infinity,
@@ -403,7 +414,7 @@ class RenderManager implements IPhysicsHost {
    * is an aerial shot with no ground anywhere near it (real terrain is >1000 units straight down) -
    * gravity would otherwise carry the player out of frame the instant its sector's collision
    * streams in. `setFlying(true)` at spawn (constructor) holds it in place until the player's
-   * first click-to-move, at which point `onHandleDoubleClick` releases it back to normal physics.
+   * first click-to-move, at which point `onHandleGroundClick` releases it back to normal physics.
    * See "player and NPC not visible" fix. */
   protected playerSpawnReleased = false;
 
@@ -710,7 +721,8 @@ class RenderManager implements IPhysicsHost {
 
     viewport.appendChild(this.renderer.domElement);
 
-    viewport.addEventListener("dblclick", this.onHandleDoubleClick.bind(this));
+    viewport.addEventListener("pointerdown", this.onHandleGroundPointerDown.bind(this));
+    viewport.addEventListener("click", this.onHandleGroundClick.bind(this));
     window.addEventListener("keydown", this.onHandleKeyDown.bind(this));
     window.addEventListener("keyup", this.onHandleKeyUp.bind(this));
     this.controls.fps.addEventListener(
@@ -741,7 +753,7 @@ class RenderManager implements IPhysicsHost {
     // in front of the active camera preset ("tower outside", Cruma). This spot is a floating
     // aerial vantage - real ground is >1000 units straight down, well outside the camera's view -
     // so the player is held with setFlying(true) rather than left to fall out of frame; the first
-    // click-to-move (onHandleDoubleClick) releases it back to normal ground physics.
+    // click-to-move (onHandleGroundClick) releases it back to normal ground physics.
     // Overridden once the network session reports real coordinates - see `placePlayerAt`.
     this.player.position.set(13584.5, 114414.37, -3472.6);
     /* Snapshot the pristine collision size before setFlying(true) swaps in the wyvern 60/80;
@@ -1201,8 +1213,26 @@ class RenderManager implements IPhysicsHost {
     }
   }
 
-  public onHandleDoubleClick(event: MouseEvent) {
+  public onHandleGroundPointerDown(event: PointerEvent) {
+    if (event.button !== 0) return;
+
+    this.groundClickDownX = event.pageX;
+    this.groundClickDownY = event.pageY;
+  }
+
+  public onHandleGroundClick(event: MouseEvent) {
     if (event.button !== 0 || !this.isOrbitControls) return;
+
+    // A left-button drag (ZUpOrbitControls rotates the camera on it) still fires a native
+    // "click" on release - only treat it as click-to-move if the pointer barely moved.
+    const dx = event.pageX - this.groundClickDownX;
+    const dy = event.pageY - this.groundClickDownY;
+
+    if (
+      dx * dx + dy * dy >
+      RenderManager.GROUND_CLICK_DRAG_THRESHOLD * RenderManager.GROUND_CLICK_DRAG_THRESHOLD
+    )
+      return;
 
     try {
       const position = new Vector2(event.pageX, event.pageY);
@@ -1236,7 +1266,12 @@ class RenderManager implements IPhysicsHost {
         //     new Vector3().addVectors(intersection.point, new Vector3(0, 100 * 1, 0)),
         //     true
         // );
-        this.player.goTo(collidable.point);
+        // Draw the marker at the destination goTo actually resolved to (it may snap away from
+        // the raw click point - see resolveGroundTarget), so the marker never lies about where
+        // the player is headed. No destination (goTo returned null) means no marker either.
+        const destination = this.player.goTo(collidable.point);
+
+        if (destination) this.showMoveMarker(destination);
       }
 
       // console.log(intersection);
@@ -1262,6 +1297,16 @@ class RenderManager implements IPhysicsHost {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  private showMoveMarker(point: Vector3) {
+    if (this.moveMarker) {
+      this.objectGroup.remove(this.moveMarker);
+      this.moveMarker.dispose();
+    }
+
+    this.moveMarker = new MoveTargetMarker(point);
+    this.objectGroup.add(this.moveMarker);
   }
 
   public setSize(width: number, height: number, updateStyle?: boolean) {
@@ -2021,6 +2066,12 @@ class RenderManager implements IPhysicsHost {
   }
 
   protected _updateObjects(currentTime: number, deltaTime: number) {
+    if (this.moveMarker && !this.moveMarker.update(deltaTime)) {
+      this.objectGroup.remove(this.moveMarker);
+      this.moveMarker.dispose();
+      this.moveMarker = null;
+    }
+
     this.visibleWorldBatchEmitters.length = 0;
     this.neighborVisibilitySectors.length = 0;
     this.dropDetail = deltaTime > DROP_DETAIL_FRAME_TIME_MS;
@@ -2767,6 +2818,11 @@ class RenderManager implements IPhysicsHost {
     );
     this.frustum.setFromProjectionMatrix(this.lastProjectionScreenMatrix);
 
+    if (this.isOrbitControls && this.cameraFollowsPlayer) {
+      this.controls.orbit.target.copy(this.player.position);
+      this.controls.orbit.update();
+    }
+
     if (!this.isOrbitControls) {
       let forwardVelocity = 0,
         sidewaysVelocity = 0;
@@ -3509,6 +3565,17 @@ class RenderManager implements IPhysicsHost {
     sector.worldBounds.setFromObject(sector);
 
     sector.staticMeshGroup.updateMatrixWorld(true);
+
+    // Mirrors addSector's collider registration (see comment there): isSectorCollisionReady
+    // flips true the instant staticMeshGroup is attached, so its colliders must exist by the
+    // time this function returns or the pawn falls through geometry that streamed in late.
+    sector.staticMeshGroup.traverse((child: ICollidable) => {
+      if (!child.isCollidable) return;
+
+      this.collidables.push(child);
+      this.registerCollider(child);
+    });
+
     if (!freezeStaticSubtree(sector.staticMeshGroup))
       unfreezeAncestors(sector.staticMeshGroup);
 
