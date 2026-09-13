@@ -34,6 +34,8 @@ new Worker(new URL("./decode.worker.ts", import.meta.url), { type: "module", nam
 | `src/index.ts`, `src/core.ts`, `src/sector-precache.ts`, `src/sector-test.ts` | client | entry / mode select |
 | `src/rendering/**`, `src/materials/**`, `src/objects/**` | client | three.js, DOM |
 | `src/base-actor.ts`, `src/player.ts`, `src/utils/**` | client | |
+| `src/net/**` | client | three.js-free by design (runs under Vitest's `node` environment); dev-only live-server session. See [networking.md](networking.md). |
+| `src/game/net-world-bridge.ts` | client | the only file importing both `src/net/**` and `RenderManager` |
 | `src/assets/asset-manager.ts` | client | main-thread sector streaming; only ever sees plain decoded data |
 | `src/assets/asset-handle.ts` | client | OPFS raw-file fetch helper |
 | `src/assets/decoders/object3d-decoder.ts`, `material-decoder.ts`, `texture-decoder.ts`, `object-batching.ts`, `env-decoder.ts`, `env-colors-decoder.ts` | client | translate plain decode-info → three.js objects on the main thread |
@@ -127,5 +129,15 @@ The Origin Private File System is used for three unrelated things:
 | Decoded-library cache | [decode-cache.ts](../src/assets/decode-worker/decode-cache.ts) | `decode-cache/<sector>.v<cache.version>.<settingsHash>.bin` | skip deserialization + decode-info + batch merge on warm hits; TTL 7 days |
 | Cache sweep | [decode-cache.ts](../src/assets/decode-worker/decode-cache.ts) `sweepDecodeCache` | — | runs once per engine on first decode; deletes wrong-version and stale entries |
 
-`loadSettings.cache.version` (in [src/core.ts](../src/core.ts), currently `7`) must be bumped
+`loadSettings.cache.version` (in [src/core.ts](../src/core.ts), currently `15`) must be bumped
 whenever decode logic changes — it invalidates every cached sector.
+
+## Live-server networking (dev-only, separate from both graphs above)
+
+`startCore()` also fire-and-forget-starts `attachNetSession` (`src/game/net-world-bridge.ts`),
+which runs a login→game handshake against a real L2 server over a WebSocket-to-TCP bridge the
+Vite dev server provides (`tools/tcp-bridge-plugin.ts`), then places the camera at the real
+character's coordinates once they are known. It touches neither the client-graph/worker-graph
+split above (no UE2 parsing) nor `RenderManager`'s internals beyond two public methods. It is
+gated behind `.env` + `import.meta.env.DEV` and never blocks asset loading — see
+[networking.md](networking.md) for the full breakdown.

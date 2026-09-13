@@ -14,11 +14,21 @@
 
 ### Current coverage
 
-Thin. The only project test today is
-[src/__smoke__/sanity.test.ts](../src/__smoke__/sanity.test.ts), a smoke test that proves the
-runner, the TS transform, and alias resolution work. **Keep `npm test` green** so the `tdd`
-skill has a baseline. Add tests alongside the code you change. A test that imports a material
-module must stub the raw shader imports itself (see above).
+Thin outside `src/net/**`. [src/__smoke__/sanity.test.ts](../src/__smoke__/sanity.test.ts) is a
+smoke test that proves the runner, the TS transform, and alias resolution work. **Keep
+`npm test` green** so the `tdd` skill has a baseline. Add tests alongside the code you change. A
+test that imports a material module must stub the raw shader imports itself (see above).
+
+`src/net/**` (the live-server networking layer, see [networking.md](networking.md)) is the one
+part of the codebase with real unit coverage, because it has no three.js/DOM/UE2-binary
+dependency: [packet-codec.spec.ts](../src/net/binary/packet-codec.spec.ts) (reader/writer
+round-trips), [crypto.spec.ts](../src/net/crypto/crypto.spec.ts) (Blowfish/login-crypt/
+game-crypt/RSA round-trips), [parsers.spec.ts](../src/net/parsers/parsers.spec.ts) (packet body
+parsers), [world-tile.spec.ts](../src/net/world-tile.spec.ts) (coord→sector-id mapping),
+[ws-transport.spec.ts](../src/net/ws-transport.spec.ts) (`FrameReassembler` framing). Treat this
+as the pattern to follow when a new piece of `src/net/**` needs coverage — there is no
+`?sectorTest`-style integration harness for the network stack; testing the full handshake
+end-to-end means running `npm run dev` against a real login/game server.
 
 ## `?sectorTest` — the full-map sweep harness
 

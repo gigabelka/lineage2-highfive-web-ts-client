@@ -8,23 +8,33 @@ config (`configs/` is the removed Webpack dir, still present but ignored). Notab
 - `root` = repo dir · `publicDir` = `html/` (served at `/`) · `build.outDir` = `bin/`
   (`emptyOutDir`, `sourcemap`, `target: "chrome80"`).
 - `server`: port `8888`, host `127.0.0.1`. HMR is disabled when `LIVE_RELOAD=0`.
-  `server.fs.allow` is widened to reach `node_modules/@l2js`.
+  `server.fs.allow: [ROOT]` (vendored `@l2js/core`/`gmp-wasm` live under the repo root, so no
+  extra `node_modules` allow-listing is needed any more).
 - `define: { global: "globalThis" }` — the source has runtime `global` refs; there is no
   Webpack node polyfill any more.
 - `worker.format: "es"`.
 - `optimizeDeps.exclude: ["@l2js/core"]` — consumed as raw TS source.
 - `css.preprocessorOptions.scss.api: "modern"`.
+- `envPrefix: ["VITE_", "L2_"]` — lets `src/net/config.ts` read live-server credentials from a
+  git-ignored `.env` (see [.env.example](../.env.example) and
+  [networking.md](networking.md#configuration)). Dev-only by construction: the network session
+  additionally requires `import.meta.env.DEV`.
 - Aliases: `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`; `path` → `path-browserify`;
-  plus the shared alias map (see below).
+  `@l2js/core` → `vendor/l2js-core/src` (vendored raw source, **not** an npm/SSH dependency);
+  `gmp-wasm` → `vendor/gmp-wasm/dist` (vendored prebuilt ESM bundle); plus the shared alias map
+  (see below).
 
 ### The four custom plugins
 
 | Plugin | What it does |
 | --- | --- |
-| `l2CoreCjsShimPlugin` | Rewrites `@l2js/core`'s one hand-authored CommonJS file (`src/supported-extensions.js`) to ESM on the fly, since the rest of the package skips esbuild's CJS→ESM interop. |
 | `assetListPlugin` | Walks `c:/Games/HighFive/` on config-resolve (dev) and `buildStart` (build) and writes `html/asset-list.json` — a `supported` / `unsupported` / `music` map of every asset. Git-ignored, auto-generated, **never edit by hand**. |
 | `rawShadersPlugin` | `.vs` / `.fs` / `.glsl` imports (no `?raw` suffix) resolve to the file text as a default-exported string. Replaces `raw-loader`. See [materials.md](materials.md#raw-shader-imports-rawshadersplugin). |
 | `devServerPlugin` | Byte-range-aware static serving of `c:/Games/HighFive/` under `/assets`, plus a `POST /sector-test/report` sink that appends JSON lines to `sector-test-report.jsonl`. |
+| `tcpBridgePlugin` ([tools/tcp-bridge-plugin.ts](../tools/tcp-bridge-plugin.ts)) | Dev-only (`apply: "serve"`, absent from `vite build`). Splices a WebSocket at `/l2-tcp?host=..&port=..` onto a real `net.Socket`, so the browser can reach a login/game server's TCP port. RFC1918/loopback + configured-`L2_LOGIN_IP` allowlist. See [networking.md](networking.md#the-browser-cannot-open-a-tcp-socket--the-dev-server-bridge). |
+
+The old `l2CoreCjsShimPlugin` (CJS→ESM rewrite for `@l2js/core`'s one hand-authored CommonJS
+file) is gone: vendoring rewrote `supported-extensions.js` to plain ESM/TS once, in place.
 
 ## npm scripts
 
@@ -82,7 +92,8 @@ Keep these in sync across [vite.config.ts](../vite.config.ts) (`resolve.alias`),
 | `@client/*` | `src/*` |
 | `@unreal/*` | `src/assets/unreal/*` |
 | `@native` | `src/assets/unreal/scripts/un-native-registry.ts` |
-| `@l2js/core` | `node_modules/@l2js/core/src` (source, not built) |
+| `@l2js/core` | `vendor/l2js-core/src` (vendored raw source, upstream `realratchet/l2js-core`) |
+| `gmp-wasm` | `vendor/gmp-wasm/dist` (vendored prebuilt ESM, WASM embedded as base64) |
 
 VSCode is configured for non-relative imports
 (`typescript.preferences.importModuleSpecifier: non-relative`) — prefer alias imports over
@@ -93,13 +104,16 @@ VSCode is configured for non-relative imports
 - **`c:/Games/HighFive/` must exist** — the real client asset install. `assetListPlugin`
   walks it and writes `html/asset-list.json`. Without assets the build still runs but the app
   has nothing to load.
-- **`@l2js/core`** is pulled over SSH (`git+ssh://git@github.com:realratchet/l2js-core.git#stable`);
-  `npm install` needs GitHub SSH access.
+- **`@l2js/core`** is **vendored** at `vendor/l2js-core/` (raw TS source) — no npm/SSH
+  dependency; `npm install` needs no GitHub SSH access. Its `gmp-wasm` runtime dep is likewise
+  vendored at `vendor/gmp-wasm/`. Edit `vendor/l2js-core/**` in place when core needs changes.
 - `html/` (Vite `publicDir`, served at `/`) holds committed static assets (`skybox.png`)
   plus the generated `asset-list.json` (git-ignored). `bin/` is the build output, git-ignored.
+- **`.env`** (git-ignored, copy from [.env.example](../.env.example)) — optional; only needed
+  for the live-server networking session. See [networking.md](networking.md#configuration).
 
 ## `tools/`
 
-One standalone `tsx` script, no build integration.
-
 - [tools/typecheck.ts](../tools/typecheck.ts) — the advisory `tsc` wrapper described above.
+- [tools/tcp-bridge-plugin.ts](../tools/tcp-bridge-plugin.ts) — the dev-only WebSocket↔TCP
+  bridge plugin (see above and [networking.md](networking.md)).

@@ -12,7 +12,10 @@ with [three.js](https://threejs.org) + WebGL.
 
 Current state: a **streaming asset viewer**, not gameplay. You can fly a camera through the
 whole map; sectors stream in and out around you. Player movement, physics, and skills exist
-only as scaffolding (see [rendering.md](rendering.md#actors-live-vs-scaffolding)).
+only as scaffolding (see [rendering.md](rendering.md#actors-live-vs-scaffolding)). A dev-only,
+opt-in networking layer (`src/net/**`, see [networking.md](networking.md)) can log into a real
+login/game server and place the camera at the real character's position, but it does not yet
+turn this into a playable client — it just drives where streaming starts from.
 
 The code is deliberately messy in places. Reverse-engineering binary memory layouts forces
 constant churn, so **do not "clean up" adjacent code as a side effect of a change**, and keep
@@ -27,6 +30,7 @@ documentation.
 | [asset-pipeline.md](asset-pipeline.md) | Touch UE2 parsing: packages, `@l2js/core`, the `@unreal/*` classes, the decode library, the OPFS caches. |
 | [decode-worker.md](decode-worker.md) | Touch the worker pool, the main↔worker message protocol, or `AssetManager` sector streaming. |
 | [rendering.md](rendering.md) | Touch `RenderManager`, cameras, sky/fog/env, audio, actors, or anything about the UE2 coordinate convention. |
+| [networking.md](networking.md) | Touch `src/net/**`, the login/game FSM, packet crypto, the dev-server TCP bridge, or the net→renderer seam (`src/game/net-world-bridge.ts`). |
 | [materials.md](materials.md) | Touch shaders, materials, the raw-GLSL import mechanism, or global uniforms. |
 | [build-and-tooling.md](build-and-tooling.md) | Touch `vite.config.ts`, `package.json` scripts, tsconfig/eslint/knip, path aliases, or `tools/`. |
 | [testing.md](testing.md) | Write a test, or run the `?sectorTest` full-map sweep harness. |

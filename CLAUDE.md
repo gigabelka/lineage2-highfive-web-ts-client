@@ -30,13 +30,14 @@ A from-scratch browser reimplementation of the Lineage II _Chronicle 4: Scions o
 
 ## Build system: Vite (`vite.config.ts`)
 
-The project was migrated off Webpack; there is no more `configs/create-config.js`. `vite.config.ts` is the single source of truth and carries three custom plugins:
+The project was migrated off Webpack; there is no more `configs/create-config.js`. `vite.config.ts` is the single source of truth and carries four custom plugins:
 
 - **`assetListPlugin`** — regenerates `html/asset-list.json` (see above).
 - **`rawShadersPlugin`** — replaces `raw-loader`: `.vs`/`.fs`/`.glsl` imports resolve to the file text as a default-exported string. Imports in `src/materials/**` and `register-chunks.ts` carry **no `?raw` suffix**, so a plugin is required instead of Vite's built-in `?raw`.
 - **`devServerPlugin`** — byte-range-aware static serving of `c:/Games/HighFive/` under `/assets`, plus the `POST /sector-test/report` sink that appends to `sector-test-report.jsonl`.
+- **`tcpBridgePlugin`** (`tools/tcp-bridge-plugin.ts`) — `apply: "serve"` (absent from `vite build`). Splices a WebSocket at `/l2-tcp?host=..&port=..` onto a real `net.Socket` so the browser can reach a live L2 login/game server's TCP port; RFC1918/loopback + configured-`L2_LOGIN_IP` allowlist. See "Networking" below.
 
-Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`. The `@l2js/core` alias maps to `vendor/l2js-core/src` in all three alias locations (`vite.config.ts`, `tsconfig.json`, `vitest.config.ts`); the regex form collapses the optional `src/` in `@l2js/core/src/…` vs `@l2js/core/…` imports, and `tsconfig.json` mirrors it with a two-entry `paths` fallback. `vendor/l2js-core/src/supported-extensions.ts` was rewritten to plain ESM (now TS) when vendored (it was CommonJS `.js` upstream), so the old `l2CoreCjsShimPlugin` is gone. `vite.config.ts` keeps its own `SUPPORTED_EXTENSIONS` list (drives the `assetListPlugin` walk) — keep it aligned with the vendored one.
+Other config of note: `define: { global: "globalThis" }` (src has runtime `global` refs, no more Webpack node polyfill); `worker.format: "es"`; `path` → `path-browserify`; `@dimforge/rapier3d` → `@dimforge/rapier3d-compat`; `envPrefix: ["VITE_", "L2_"]` (exposes `.env`'s `L2_*` vars to `src/net/config.ts`). The `@l2js/core` alias maps to `vendor/l2js-core/src` in all three alias locations (`vite.config.ts`, `tsconfig.json`, `vitest.config.ts`); the regex form collapses the optional `src/` in `@l2js/core/src/…` vs `@l2js/core/…` imports, and `tsconfig.json` mirrors it with a two-entry `paths` fallback. `vendor/l2js-core/src/supported-extensions.ts` was rewritten to plain ESM (now TS) when vendored (it was CommonJS `.js` upstream), so the old `l2CoreCjsShimPlugin` is gone. `vite.config.ts` keeps its own `SUPPORTED_EXTENSIONS` list (drives the `assetListPlugin` walk) — keep it aligned with the vendored one.
 
 ## Client / decode-worker separation (critical)
 
@@ -94,6 +95,17 @@ When adding code, decide which side it belongs to: anything touching `src/assets
 `src/ue-script/script-values.ts` defines the type-only shapes (`ScriptValue_T`, `ScriptHost_T`, `ScriptNativeCall_T`) for the future UnrealScript VM bridge (`vm.ts`, `operators.ts`, `native-registry.ts`, Phase 4) so `BaseActor`/`PawnMovementComponent` can carry final method signatures ahead of the VM landing; this file is client-side only (the VM proper is client-side, `script-dump-loader.ts` is worker-side).
 
 `RenderManager.update` drives `player.update` at 60 Hz and NPC `pawn.update` at 30 Hz (`render-manager.ts:2721`); this is a live path now, not commented-out scaffolding. `src/objects/` also has non-actor scene object types (`movable-object.ts`, `rotating-object.ts`, `swaying-object.ts`, `lit-actor.ts`, `terrain-decoration.ts`, emitters).
+
+### Networking — live-server session (dev-only, opt-in)
+
+`src/net/**` (three.js-free by design, runs under Vitest's `node` environment) drives a real login→game handshake against an L2 server (HighFive, protocol 267) so the character's real coordinates can seed sector streaming, instead of only a free-flying debug camera. Full breakdown, wire-format corrections, and per-file description: `docs/networking.md`; base wire-format reference: `server-protocol.md`.
+
+- **Never blocks the offline viewer.** `loadNetConfig()` (`src/net/config.ts`) never throws — a missing/malformed `.env` (copy from `.env.example`) degrades to `{ enabled: false }` + one `console.warn`. The session additionally requires `import.meta.env.DEV` (credentials ride the bundle via `envPrefix`, so it's dev-only by construction) and is force-disabled by `?nonet`. `src/core.ts` starts it fire-and-forget, concurrently with asset init; a dead server/bad password never stops `startCore()`.
+- **Browser can't open TCP**, so `src/net/ws-transport.ts` (`L2Connection`/`FrameReassembler`) tunnels the L2 byte stream over a WebSocket to the dev server, spliced onto a real socket by the `tcpBridgePlugin` (see above) — dumb pipe, no framing/opcode/crypto knowledge on that side.
+- `src/net/login-client.ts` / `src/net/game-client.ts` are independent state machines (`runLogin` → `LoginResult` is their entire contract); `src/net/session.ts`'s `L2Session` runs them back to back and exposes one `SessionSnapshot`. `src/net/opcodes.ts` documents **four corrections** against the real server Java source that override `server-protocol.md` (reversed keepalive opcodes/direction, `CharSelectionInfo`/`CryptInit`/`UserInfo` layout) — do not "fix" these back to the doc.
+- `src/net/crypto/**` — login Blowfish + rolling-XOR (`login-crypt.ts`, `new-crypt.ts`, `blowfish.ts`), the game session's shifting-XOR cipher (`game-crypt.ts`, dormant unless the server sets `PACKET_ENCRYPTION`), and RSA-1024/`NO_PADDING` credential encryption (`rsa-crypt.ts`, `scrambled-rsa-key.ts`) done as raw `BigInt` `modPow` since Node's padding-aware `publicEncrypt` doesn't exist in the browser.
+- `src/game/net-world-bridge.ts` (`attachNetSession`) is the **only** file importing both `src/net/**` and `RenderManager` — it owns coordinate-source priority (`charList` < `charSelected` < `userInfo`, authoritative), the "flying hold" (player floats until the target sector's collision has actually streamed in, then `RenderManager.releasePlayerHold()`), and the DOM HUD (`src/net/net-hud.ts`).
+- This is the one area of the codebase with real Vitest coverage today (`*.spec.ts` next to `packet-reader/writer`, `crypto/`, `parsers/`, `world-tile.ts`, `ws-transport.ts`) — follow that pattern for new net code rather than leaving it untested like the rest of the client.
 
 ### Utilities
 

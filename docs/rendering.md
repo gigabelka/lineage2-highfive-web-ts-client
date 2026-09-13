@@ -49,10 +49,10 @@ when `isPersistentRendering || needsUpdate`).
 
 - **`_preRender`** — `assetManager.tick(this)`, `processSectorWarmups`,
   `processShaderDiagnostics`, `mixer.update`, advance time-of-day, rebuild the frustum, FPS
-  camera WASD movement, a 30 Hz physics tick gate (**`physicsWorld.step()` and
-  `player.update()` are commented out here**), `audioManager.update`, lerp `player.position`
-  toward the rigidbody translation, `_updateObjects`, music-volume switching, a full
-  spatial ambient-sound pass (ported from `alaudio.dll`), listener update, `renderer.clear()`.
+  camera WASD movement, `audioManager.update`, two **live** physics/actor tick gates
+  (`player.update()` at 60 Hz, every other pawn's `update()` at 30 Hz — see "Actors: live vs
+  scaffolding" below), `_updateObjects`, music-volume switching, a full spatial ambient-sound
+  pass (ported from `alaudio.dll`), listener update, `renderer.clear()`.
 - **`_updateObjects`** — sets `dropDetail` / `aggressiveLod` from frame time vs
   `MIN_DESIRED_FRAME_RATE = 35`; advances `GLOBAL_UNIFORMS.globalTimeSeconds`; computes
   `staticMeshSunAmbient` and the shared `cameraBillboardRight`/`cameraBillboardUp` basis;
@@ -65,6 +65,24 @@ when `isPersistentRendering || needsUpdate`).
   `renderer.setClearColor`, `scene.fog`, and the fog global uniforms.
 - **`_doRender`** — optional gamma target bind, `skyRenderer.render` then `clearDepth`,
   recreate the visualizer on sector change, `renderer.render(scene, camera)`, gamma blit.
+
+### Network hand-off: `placePlayerAt` / `releasePlayerHold`
+
+The only two public methods `RenderManager` exposes for the live-server session
+(`src/game/net-world-bridge.ts`, see [networking.md](networking.md)) — `RenderManager` itself
+has no knowledge of the network stack beyond these two generic calls:
+
+- **`placePlayerAt(position, opts?)`** — teleports the player to a server-reported world
+  position and moves the camera to look at it (also what kicks off `AssetManager` streaming
+  toward that area, since there is no `loadAround(x,y,z)`). Snapshots the real collision
+  size before forcing `setFlying(true)`, because `setFlying` overwrites it with the debug
+  wyvern's collision and never restores it on its own.
+- **`releasePlayerHold()`** — `setFlying(false)` + restores the snapshotted collision size.
+  Idempotent. Called once the caller has confirmed the target sector's collision actually
+  streamed in — `RenderManager` does not decide *when*, only exposes the primitive.
+- **`hasSector(id)`** / **`getSector(position)`** — narrow read-only windows onto
+  `assetManager`, used by the network bridge to tell "still streaming" apart from "this tile
+  was never shipped".
 
 ### Input
 
@@ -147,8 +165,8 @@ address citations.
 
 | Class | File | Status |
 | --- | --- | --- |
-| `BaseActor` | [src/base-actor.ts](../src/base-actor.ts) | Fully implemented (Rapier cuboid + dynamic body, animation state machine, ground raycasts) but **`update()` is never called** — the per-frame `player.update()` and `physicsWorld.step()` in `_preRender` are commented out. Scaffolding. |
-| `Player` | [src/player.ts](../src/player.ts) | Constructed and added to the scene; `goTo(point)` is wired to left-click; `_preRender` lerps `player.position` toward the (never-stepped) rigidbody. `tryToGo` is not called. Scaffolding. |
+| `BaseActor` | [src/base-actor.ts](../src/base-actor.ts) | **Live.** Rapier cuboid + dynamic body, animation state machine, ground raycasts. `update()` is driven by `RenderManager._preRender`'s two tick gates: `player.update()` at 60 Hz, every other pawn's `update()` at 30 Hz (`render-manager.ts:2721`, ~`this.nextPlayerTick`/`this.nextPawnTick`) — `physicsWorld.step()` runs inside the 60 Hz gate too. |
+| `Player` | [src/player.ts](../src/player.ts) | **Live.** Constructed and added to the scene; `goTo(point)` is wired to left-click and drives `PawnMovementComponent`. `RenderManager.placePlayerAt`/`releasePlayerHold` (see below) let the network session teleport it and hand it back to gravity once collision has streamed in. |
 | `MovableObject` | [src/objects/movable-object.ts](../src/objects/movable-object.ts) | **Live.** UE2 `Mover` port (doors, castle gates): key positions/quaternions, `closed → delaying → opening → open → closing` state machine, kinematic body. Driven by `RenderManager.movableObjects` + `updateMovableObjects`. |
 | `RotatingObject` | [src/objects/rotating-object.ts](../src/objects/rotating-object.ts) | **Live.** Windmills, spinners. `pitch/yaw/roll += rate * dt`. Driven by `RenderManager.rotatingObjects`. |
 | `SwayingObject` | [src/objects/swaying-object.ts](../src/objects/swaying-object.ts) | **Live** (a `RotatingObject`). `PHYS_L2Movement` sway (trees, hanging props); can carry attached emitters. |

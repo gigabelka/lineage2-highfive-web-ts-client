@@ -6,14 +6,17 @@ worker pool and the message protocol see [decode-worker.md](decode-worker.md).
 
 ## `@l2js/core` and the shell / mixin pattern
 
-`@l2js/core` is a private dependency (`git+ssh://git@github.com:realratchet/l2js-core.git#stable`)
-consumed as **raw TypeScript source** — the alias `@l2js/core` points at
-`node_modules/@l2js/core/src`, and Vite's `optimizeDeps.exclude` keeps it out of dependency
-pre-bundling. Its single hand-authored CommonJS file (`src/supported-extensions.js`) is
-rewritten to ESM on the fly by the `l2CoreCjsShimPlugin` in
-[vite.config.ts](../vite.config.ts). Because it is type-checked as source, `tsc` emits ~30
-errors from inside it that are unrelated to this project — the
-[tools/typecheck.ts](../tools/typecheck.ts) wrapper suppresses them.
+`@l2js/core` is **vendored** into the repo at `vendor/l2js-core/` (raw TypeScript source,
+upstream `realratchet/l2js-core`) — not an npm/SSH dependency, so `npm install` needs no GitHub
+access. The alias `@l2js/core` points at `vendor/l2js-core/src`, and Vite's
+`optimizeDeps.exclude` keeps it out of dependency pre-bundling. Its one hand-authored
+CommonJS file (`src/supported-extensions.js` upstream) was rewritten to plain ESM/TS **once, in
+place**, when it was vendored, so the old CJS-shim plugin that used to do this on the fly at
+build time is gone. Because it is type-checked as source, `tsc` emits ~30 errors from inside it
+that are unrelated to this project — the [tools/typecheck.ts](../tools/typecheck.ts) wrapper
+suppresses them. Its runtime dep `gmp-wasm` (RSA decrypt) is likewise vendored at
+`vendor/gmp-wasm/` (prebuilt ESM bundle, WASM embedded as base64) — edit `vendor/l2js-core/**`
+in place when core needs changes; there is no separate upstream checkout.
 
 `@l2js/core` provides:
 

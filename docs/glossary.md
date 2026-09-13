@@ -73,6 +73,19 @@ the runtime mixin (`uuid`, `dumpLayout()`); per-directory `*.d.ts` files provide
 - **Non-vanilla-purist** — the project's stated stance: skipping non-critical data hiding in
   the binaries is acceptable when the render works without it.
 - **`?sectorTest` / `?precacheSectors`** — URL modes; see [testing.md](testing.md).
+- **`L2Session`** (`src/net/session.ts`) — orchestrates the login→game handshake and exposes one
+  `SessionSnapshot`; three.js-free. See [networking.md](networking.md).
+- **`CoordSource`** — which packet a placement coordinate came from
+  (`charList` < `charSelected` < `userInfo`, later/higher priority wins, `userInfo` is
+  authoritative and never overridden). See [networking.md](networking.md#sessionts--orchestration).
+- **The flying hold** — the player floats at the authoritative spawn coordinate until the
+  target sector's collision has actually streamed in (`net-world-bridge.ts`'s
+  `watchForGround`), then `RenderManager.releasePlayerHold()` hands off to gravity.
+- **`FrameReassembler`** (`src/net/ws-transport.ts`) — splits a raw TCP byte stream (tunnelled
+  over a WebSocket) into `[uint16LE size][body]` L2 packet frames; a WS message boundary is not
+  a frame boundary.
+- **`?nonet`** — URL flag that force-disables the live-server session even with a working
+  `.env`. See [networking.md](networking.md#configuration).
 
 ## Key file quick reference
 
@@ -109,5 +122,16 @@ the runtime mixin (`uuid`, `dumpLayout()`); per-directory `*.d.ts` files provide
 | [src/materials/mesh-static-material/mesh-static-material.ts](../src/materials/mesh-static-material/mesh-static-material.ts) | the main world material |
 | [src/objects/lit-actor.ts](../src/objects/lit-actor.ts) | per-vertex lighting engine (base of the actor chain) |
 | [src/objects/emitters/base-emitter.ts](../src/objects/emitters/base-emitter.ts) | UE2 `UParticleEmitter` port |
+| [src/net/config.ts](../src/net/config.ts) | reads `L2_*` from `.env`; never throws, degrades to `enabled: false` |
+| [src/net/session.ts](../src/net/session.ts) | `L2Session` — login→game orchestration, `SessionSnapshot` |
+| [src/net/login-client.ts](../src/net/login-client.ts) | login-server FSM |
+| [src/net/game-client.ts](../src/net/game-client.ts) | game-server FSM + client-initiated keepalive |
+| [src/net/opcodes.ts](../src/net/opcodes.ts) | HighFive opcode map + the 4 doc corrections |
+| [src/net/ws-transport.ts](../src/net/ws-transport.ts) | `L2Connection` + `FrameReassembler`, the browser end of the TCP bridge |
+| [src/net/crypto/](../src/net/crypto/) | Blowfish/login-crypt, game-crypt (shifting XOR), RSA credential encryption |
+| [src/net/world-tile.ts](../src/net/world-tile.ts) | world coord → sector id, shared with `RenderManager.getSectorId` |
+| [src/game/net-world-bridge.ts](../src/game/net-world-bridge.ts) | the only file joining `src/net/**` to `RenderManager` (placement, the flying hold, the HUD) |
+| [src/net/net-hud.ts](../src/net/net-hud.ts) | DOM connection-status overlay |
+| [tools/tcp-bridge-plugin.ts](../tools/tcp-bridge-plugin.ts) | dev-server WebSocket↔TCP splice for `src/net/**` |
 | [vite.config.ts](../vite.config.ts) | build config + 4 custom plugins |
 | [global.d.ts](../global.d.ts) / [index.d.ts](../index.d.ts) | the `L2JS.*` namespace aliases and their members |
