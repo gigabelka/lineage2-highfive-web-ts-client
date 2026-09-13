@@ -366,6 +366,10 @@ class RenderManager implements IPhysicsHost {
   private groundClickDownX = 0;
   private groundClickDownY = 0;
   private static readonly GROUND_CLICK_DRAG_THRESHOLD = 6;
+  // Comfortably larger than one sector (getSectorId's sectorSize = 256*128) but far short of
+  // camera.far (DEFAULT_FAR) - the ray can only ever hit registered colliders anyway, so this
+  // just bounds the query instead of tracing off into unloaded space.
+  private static readonly GROUND_CLICK_MAX_DISTANCE = 50_000;
   protected lastRender: number = 0;
   protected readonly _lastListenerPos = new Vector3(
     Infinity,
@@ -1237,20 +1241,25 @@ class RenderManager implements IPhysicsHost {
     try {
       const position = new Vector2(event.pageX, event.pageY);
       const ssPosition = this.toScreenSpaceCoords(position);
-      const intersections: THREE.Intersection[] = [];
 
       this.raycaster.setFromCamera(ssPosition, this.camera);
-      this.raycaster.intersectObject(this.scene, true, intersections);
 
-      if (intersections.length === 0) return;
-
-      const intersection = intersections[0];
-
-      const collidable = intersections.find(
-        (i) => (i.object as any).isCollidable,
+      // Raycasting the visual scene (as this used to) is unreliable: it recurses into every
+      // renderable mesh - foliage, water planes, decorative props, UV/geometry seams - and picks
+      // the first one flagged isCollidable, which frequently isn't where the click "should" land
+      // and doesn't match the actual collision geometry the pawn walks on. The donor project
+      // (Lineage2JS-character-controller, src/game/input-manager.ts) instead only uses the
+      // three.js ray for its origin/direction and resolves the destination against the physics
+      // collision world directly - do the same here.
+      const physicsHit = this.rayCheck(
+        this.raycaster.ray.origin,
+        this.raycaster.ray.direction,
+        RenderManager.GROUND_CLICK_MAX_DISTANCE,
+        this.player.getCollider(),
+        this.player.getRigidbody(),
       );
 
-      if (collidable) {
+      if (physicsHit) {
         // Release the boot-time floating spawn (see the constructor and playerSpawnReleased doc
         // comment) the first time the player is sent somewhere - from here on it falls/walks like
         // any other click-to-move destination.
@@ -1262,17 +1271,22 @@ class RenderManager implements IPhysicsHost {
           this.restorePlayerCollisionSize();
         }
 
-        // this.player.getRigidbody().setTranslation(
-        //     new Vector3().addVectors(intersection.point, new Vector3(0, 100 * 1, 0)),
-        //     true
-        // );
         // Draw the marker at the destination goTo actually resolved to (it may snap away from
         // the raw click point - see resolveGroundTarget), so the marker never lies about where
         // the player is headed. No destination (goTo returned null) means no marker either.
-        const destination = this.player.goTo(collidable.point);
+        const destination = this.player.goTo(physicsHit.location);
 
         if (destination) this.showMoveMarker(destination);
       }
+
+      // Debug-only node-index lookup (kept for `console.log`-based inspection while working on
+      // sector geometry) - unrelated to movement now, still needs its own scene raycast.
+      const intersections: THREE.Intersection[] = [];
+      this.raycaster.intersectObject(this.scene, true, intersections);
+
+      if (intersections.length === 0) return;
+
+      const intersection = intersections[0];
 
       // console.log(intersection);
 
