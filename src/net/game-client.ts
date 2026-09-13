@@ -19,6 +19,14 @@ import { hex } from "@client/net/binary/bytes";
 import { parseCharSelected, type CharSelectedBrief } from "@client/net/parsers/char-selected";
 import { parseCharSelectionInfo, type CharacterInfo } from "@client/net/parsers/char-selection-info";
 import { parseUserInfo, type UserInfoBrief } from "@client/net/parsers/user-info";
+import {
+  parseServerMoveToLocation,
+  parseStopMove,
+  parseValidateLocation,
+  type HeadedLocation,
+  type ServerMoveToLocation,
+} from "@client/net/parsers/movement";
+import { buildMoveToLocation, buildValidatePosition, type Vec3I } from "@client/net/packets/movement";
 
 export type GameState =
   | "WAIT_CRYPT_INIT"
@@ -47,6 +55,12 @@ export interface GameClientEvents {
   onUserInfo?(info: UserInfoBrief): void;
   onPong?(gameTime: number): void;
   onDisconnect?(reason: string): void;
+  /** Server-initiated position correction, filtered to our own objectId. */
+  onValidateLocation?(loc: HeadedLocation): void;
+  /** Server telling us (or another actor) to stop moving, filtered to our own objectId. */
+  onStopMove?(loc: HeadedLocation): void;
+  /** Broadcast of a move order, filtered to our own objectId - rarely needed since we issued it. */
+  onServerMove?(move: ServerMoveToLocation): void;
 }
 
 function tracing(): boolean {
@@ -64,6 +78,9 @@ export class GameClient {
   private settled = false;
   private enteredWorld = false;
   private unknownCount = 0;
+  /** Our own character's objectId, from CharSelected/UserInfo - movement broadcasts are keyed by
+   *  it and must be filtered against every other actor moving in view range. */
+  private objectId: number | null = null;
 
   private currentState: GameState = "WAIT_CRYPT_INIT";
 
@@ -131,6 +148,24 @@ export class GameClient {
     this.stopKeepalive();
     this.connection?.close();
     this.connection = null;
+  }
+
+  /** True once the session can accept outgoing movement packets (IN_GAME with a live socket). */
+  private canSendGameplay(): boolean {
+    return this.currentState === "IN_GAME" && !!this.connection?.isOpen;
+  }
+
+  /** MoveToLocation (0x0F), IN_GAME only. A no-op outside IN_GAME or on a closed connection - the
+   *  server would silently drop it anyway (ClientPackets.java gates it on ConnectionState). */
+  public sendMoveToLocation(target: Vec3I, origin: Vec3I, movementMode: 0 | 1 = 1): void {
+    if (!this.canSendGameplay()) return;
+    this.send(buildMoveToLocation(target, origin, movementMode));
+  }
+
+  /** ValidatePosition (0x59), IN_GAME only. Same no-op guard as sendMoveToLocation. */
+  public sendValidatePosition(position: Vec3I, heading: number, vehicleId = 0): void {
+    if (!this.canSendGameplay()) return;
+    this.send(buildValidatePosition(position, heading, vehicleId));
   }
 
   private transition(next: GameState): void {
@@ -207,7 +242,25 @@ export class GameClient {
           break;
 
         case "IN_GAME":
-          return; // everything but the pong is dropped once we are in the world
+          // Movement broadcasts cover every actor in view range - filter to our own objectId.
+          // Everything else is still dropped. A malformed broadcast is logged, not fatal - it is
+          // not worth losing the whole session over (same policy as handleCharSelected below).
+          try {
+            if (opcode === OPCODES.game.in.ValidateLocation) {
+              const loc = parseValidateLocation(body);
+              if (loc.objectId === this.objectId) this.events.onValidateLocation?.(loc);
+            } else if (opcode === OPCODES.game.in.StopMove) {
+              const loc = parseStopMove(body);
+              if (loc.objectId === this.objectId) this.events.onStopMove?.(loc);
+            } else if (opcode === OPCODES.game.in.MoveToLocation) {
+              const move = parseServerMoveToLocation(body);
+              if (move.objectId === this.objectId) this.events.onServerMove?.(move);
+            }
+          } catch (e) {
+            console.warn(`[game] movement broadcast 0x${opcode.toString(16)} parse failed: ${(e as Error).message}`);
+          }
+
+          return;
 
         default:
           return;
@@ -300,6 +353,7 @@ export class GameClient {
     try {
       const char = parseCharSelected(body);
       console.info(`[game] CharSelected: ${char.name} @ ${char.x},${char.y},${char.z}`);
+      this.objectId = char.objectId;
       this.events.onCharSelected?.(char);
     } catch (e) {
       // A hint we failed to read is not worth losing the session over - UserInfo is what counts.
@@ -311,6 +365,7 @@ export class GameClient {
     try {
       const info = parseUserInfo(body);
       console.info(`[game] UserInfo: ${info.name} @ ${info.x},${info.y},${info.z}`);
+      this.objectId = info.objectId;
       this.events.onUserInfo?.(info);
     } catch (e) {
       console.error(`[game] UserInfo parse failed - coordinates unknown: ${(e as Error).message}`);

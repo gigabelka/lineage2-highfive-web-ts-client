@@ -10,6 +10,8 @@ import type { CharSelectedBrief } from "@client/net/parsers/char-selected";
 import type { CharacterInfo } from "@client/net/parsers/char-selection-info";
 import type { NetConfig } from "@client/net/config";
 import type { UserInfoBrief } from "@client/net/parsers/user-info";
+import type { HeadedLocation } from "@client/net/parsers/movement";
+import type { Vec3I } from "@client/net/packets/movement";
 import { GameClient } from "@client/net/game-client";
 import { coordToTile } from "@client/net/world-tile";
 import { runLogin } from "@client/net/login-client";
@@ -39,12 +41,21 @@ export interface SessionSnapshot {
   tile: string | null;
   lastPongAt: number | null;
   gameTime: number | null;
+  /** When we last sent ValidatePosition, for the HUD's outgoing-traffic line. */
+  lastValidateAt: number | null;
+  /** How many server position corrections (ValidateLocation/StopMove) we have received. */
+  corrections: number;
 }
+
+/** kind distinguishes the two correction packets - StopMove additionally means "halt". */
+export type CorrectionKind = "validateLocation" | "stopMove";
 
 export interface SessionHandlers {
   onSnapshot?(snapshot: SessionSnapshot): void;
   /** Called whenever a better coordinate source arrives. */
   onPlace?(x: number, y: number, z: number, source: CoordSource): void;
+  /** A server-authoritative position correction for our own character. */
+  onCorrection?(loc: HeadedLocation, kind: CorrectionKind): void;
 }
 
 export class L2Session {
@@ -64,6 +75,8 @@ export class L2Session {
     tile: null,
     lastPongAt: null,
     gameTime: null,
+    lastValidateAt: null,
+    corrections: 0,
   };
 
   public constructor(cfg: NetConfig, handlers: SessionHandlers = {}) {
@@ -87,6 +100,18 @@ export class L2Session {
     this.game = null;
   }
 
+  /** Forwards to the underlying GameClient; a silent no-op while not connected/IN_GAME - the
+   *  GameClient itself gates on state, this just tolerates `this.game === null` too. */
+  public sendMove(target: Vec3I, origin: Vec3I, movementMode: 0 | 1 = 1): void {
+    this.game?.sendMoveToLocation(target, origin, movementMode);
+  }
+
+  public sendValidatePosition(position: Vec3I, heading: number, vehicleId = 0): void {
+    if (!this.game) return;
+    this.game.sendValidatePosition(position, heading, vehicleId);
+    this.patch({ lastValidateAt: Date.now() });
+  }
+
   public restart(): void {
     this.stop();
     this.patch({
@@ -96,6 +121,8 @@ export class L2Session {
       coordSource: null,
       tile: null,
       lastPongAt: null,
+      lastValidateAt: null,
+      corrections: 0,
     });
     this.start();
   }
@@ -151,6 +178,14 @@ export class L2Session {
           onPong: (gameTime) => this.patch({ lastPongAt: Date.now(), gameTime }),
           onDisconnect: (reason) => {
             if (!this.stopped) this.patch({ phase: "DISCONNECTED", detail: reason });
+          },
+          onValidateLocation: (loc) => {
+            this.patch({ corrections: this.current.corrections + 1 });
+            this.handlers.onCorrection?.(loc, "validateLocation");
+          },
+          onStopMove: (loc) => {
+            this.patch({ corrections: this.current.corrections + 1 });
+            this.handlers.onCorrection?.(loc, "stopMove");
           },
         },
       );

@@ -224,6 +224,8 @@ export class BaseActor extends GameObject implements ICollidable {
     public setAirSpeed(airSpeed: number): void { this.movementComponent.setAirSpeed(airSpeed); }
     public setCollisionSize(collisionRadius: number, collisionHeight: number): void { this.movementComponent.setCollisionSize(collisionRadius, collisionHeight); }
     public teleportTo(position: Vector3): void { this.movementComponent.teleportTo(position); }
+    public getRotationYaw(): number { return this.movementComponent.getRotationYaw(); }
+    public setRotationYaw(value: number): void { this.movementComponent.setRotationYaw(value); }
 }
 
 export default BaseActor;

@@ -1211,6 +1211,12 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
     public getVelocity(): Vector3 { return this.velocity; }
     public getAcceleration(): Vector3 { return this.acceleration; }
     public getPhysicsMode(): PhysicsMode_T { return this.physicsMode; }
+    /** UE/L2 heading unit, 0..65535 - already the wire format ValidatePosition/MoveToLocation want. */
+    public getRotationYaw(): number { return this.rotationYaw; }
+    public setRotationYaw(value: number): void {
+        this.rotationYaw = value & 65535;
+        this.rotation.set(0, 0, this.rotationYaw * Math.PI / 32768 - Math.PI / 2);
+    }
     public setVelocity(value: Vector3Arr): void { this.velocity.fromArray(value); }
     public setAcceleration(value: Vector3Arr): void { this.acceleration.fromArray(value); }
     public setPhysicsMode(value: number): void {

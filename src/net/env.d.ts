@@ -19,6 +19,7 @@ interface ImportMetaEnv {
   readonly L2_CHAR_SLOT?: string;
   readonly L2_PROTOCOL?: string;
   readonly L2_PING_MS?: string;
+  readonly L2_VALIDATE_MS?: string;
 }
 
 interface ImportMeta {

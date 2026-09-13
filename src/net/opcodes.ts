@@ -17,6 +17,15 @@
  * 3. CryptInit/KeyPacket (0x2E) has a longer body than the doc lists - see game-client.ts.
  * 4. UserInfo (0x32) puts x,y,z first, right after the opcode - see parsers/user-info.ts.
  *
+ * Movement (see docs/networking.md, "Outgoing movement"). The client packet the doc calls
+ * MoveBackwardToLocation is simply `MoveToLocation` in this server tree, and the server has a
+ * packet of the SAME NAME going the other way - they are different layouts, do not share code:
+ *   - client 0x0F: targetX, targetY, targetZ, originX, originY, originZ, movementMode
+ *   - server 0x2F: objectId, dstX, dstY, dstZ, x, y, z    <- DESTINATION BEFORE ORIGIN
+ * Sources: gameserver/network/ClientPackets.java:49 (MOVE_TO_LOCATION 0x0F, IN_GAME only),
+ * :104 (VALIDATE_POSITION 0x59, IN_GAME only); gameserver/network/ServerPackets.java:77
+ * (MOVE_TO_LOCATION 0x2F), :101 (STOP_MOVE 0x47), :151 (VALIDATE_LOCATION 0x79).
+ *
  * A `const ... as const` object, never an `enum`: tsconfig has `isolatedModules`, and the login
  * halves collide by number anyway (RequestGGAuth and PlayOk are both 0x07), hence the in/out split.
  */
@@ -45,6 +54,9 @@ export const OPCODES = {
       CharSelected: 0x0b,
       UserInfo: 0x32,
       NetPing: 0xd9, // CORRECTION 1: the server's ANSWER to our ping, not a request
+      MoveToLocation: 0x2f, // broadcast: objectId, dstX, dstY, dstZ, x, y, z
+      StopMove: 0x47, // broadcast: objectId, x, y, z, heading
+      ValidateLocation: 0x79, // broadcast: objectId, x, y, z, heading
     },
     out: {
       ProtocolVersion: 0x0e,
@@ -53,6 +65,8 @@ export const OPCODES = {
       RequestKeyMapping: 0x0021, // sent as the extended packet 0xD0 0x0021
       EnterWorld: 0x11,
       RequestNetPing: 0xb1, // CORRECTION 1: client-initiated, empty payload, IN_GAME only
+      MoveToLocation: 0x0f, // IN_GAME only: targetX/Y/Z, originX/Y/Z, movementMode (1 = mouse)
+      ValidatePosition: 0x59, // IN_GAME only: x, y, z, heading, vehicleId
     },
   },
 } as const;

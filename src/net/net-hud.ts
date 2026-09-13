@@ -80,6 +80,7 @@ export function createNetHud(onReconnect: () => void): NetHud {
 
     if (snapshot.phase === "IN_GAME") {
       lines.push(`ping ${ago(snapshot.lastPongAt)}${snapshot.gameTime !== null ? `  gameTime ${snapshot.gameTime}` : ""}`);
+      lines.push(`move validate ${ago(snapshot.lastValidateAt)}  corrections ${snapshot.corrections}`);
     }
 
     body.textContent = lines.join("\n");

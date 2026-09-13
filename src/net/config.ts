@@ -20,6 +20,8 @@ export interface NetConfig {
   protocol: number;
   /** Client-initiated keepalive interval; on this server the client pings, see opcodes.ts. */
   pingMs: number;
+  /** ValidatePosition ticker interval, matching retail's roughly-1Hz cadence. 0 disables it. */
+  validateMs: number;
 }
 
 function num(raw: string | undefined, fallback: number, name: string, problems: string[]): number {
@@ -50,6 +52,7 @@ export function loadNetConfig(): NetConfig {
     charSlot: num(env.L2_CHAR_SLOT, 0, "L2_CHAR_SLOT", problems),
     protocol: num(env.L2_PROTOCOL, 267, "L2_PROTOCOL", problems),
     pingMs: num(env.L2_PING_MS, 30000, "L2_PING_MS", problems),
+    validateMs: num(env.L2_VALIDATE_MS, 1000, "L2_VALIDATE_MS", problems),
   };
 
   if (!config.loginHost) problems.push("L2_LOGIN_IP is not set");

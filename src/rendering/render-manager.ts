@@ -96,6 +96,7 @@ const tmpBillboardUp = new Vector3();
 const tmpBillboardFront = new Vector3();
 const tmpBillboardRight = new Vector3();
 const tmpCameraFollowDelta = new Vector3();
+const tmpMoveOrigin = new Vector3();
 const OFFSCREEN_EMITTER_HZ = 2;
 const OFFSCREEN_EMITTER_INTERVAL_MS = 1000 / OFFSCREEN_EMITTER_HZ;
 const MIN_DESIRED_FRAME_RATE = 35; // Lineage II configures UE2's MinDesiredFrameRate to 35. UE2 raises bDropDetail below that rate, then bAggressiveLOD another 5 FPS lower.
@@ -427,6 +428,11 @@ class RenderManager implements IPhysicsHost {
   /** The pawn's real collision size, snapshotted before `setFlying(true)` clobbers it - see
    * `placePlayerAt`. Null when the player is not being held. */
   protected playerCollisionSize: { radius: number; height: number } | null = null;
+
+  /** Network bridge hook: fired right after a click-to-move destination is resolved, so
+   * `src/game/net-world-bridge.ts` can forward it to the server as MoveToLocation. Stays network-
+   * free itself - just a generic callback, like `placePlayerAt`/`releasePlayerHold`. */
+  public onPlayerMoveRequest: ((origin: THREE.Vector3, destination: THREE.Vector3) => void) | null = null;
 
   /** Physics components registered with this manager; it plays the donor project's PhysicsManager role. */
   protected readonly physicsComponents = new Set<IPhysicsComponent<any>>();
@@ -1278,12 +1284,20 @@ class RenderManager implements IPhysicsHost {
           this.restorePlayerCollisionSize();
         }
 
+        // Snapshot the origin BEFORE goTo - goTo only sets a desired target for the movement
+        // component to walk towards over time, it does not move `position` synchronously, but
+        // clone anyway so a later frame's mutation can never retroactively change what we report.
+        tmpMoveOrigin.copy(this.player.position);
+
         // Draw the marker at the destination goTo actually resolved to (it may snap away from
         // the raw click point - see resolveGroundTarget), so the marker never lies about where
         // the player is headed. No destination (goTo returned null) means no marker either.
         const destination = this.player.goTo(physicsHit.location);
 
-        if (destination) this.showMoveMarker(destination);
+        if (destination) {
+          this.showMoveMarker(destination);
+          this.onPlayerMoveRequest?.(tmpMoveOrigin, destination);
+        }
       }
 
       // Debug-only node-index lookup (kept for `console.log`-based inspection while working on
@@ -1473,6 +1487,45 @@ class RenderManager implements IPhysicsHost {
    */
   public hasSector(sectorId: string): boolean {
     return this.assetManager.hasSector(sectorId);
+  }
+
+  /**
+   * Whether the boot-time/spawn flying hold has been released - see `playerSpawnReleased`. While
+   * held the pawn's Z is fiction (it is floating above not-yet-streamed collision), so the
+   * network bridge should not start reporting position to the server yet.
+   */
+  public isPlayerHoldReleased(): boolean {
+    return this.playerSpawnReleased;
+  }
+
+  /**
+   * Read-only snapshot of the player's current position/heading, for the network bridge's
+   * outgoing ValidatePosition ticker. Server world coordinates map 1:1 onto UE2 space (see
+   * placePlayerAt) - the caller rounds to int32 itself, this stays raw float.
+   */
+  public getPlayerLocation(): { x: number; y: number; z: number; heading: number } {
+    const { x, y, z } = this.player.position;
+    return { x, y, z, heading: this.player.getRotationYaw() };
+  }
+
+  /**
+   * Snap the player to a server-authoritative position (ValidateLocation/StopMove), without the
+   * camera jump or flying hold that `placePlayerAt` uses for the initial spawn. A no-op while
+   * the boot-time hold is still up (`playerSpawnReleased === false`) - the pawn's Z is fiction
+   * until then and the server would reject our ValidatePosition anyway (isFalling gate), so no
+   * correction should be in flight yet.
+   */
+  public correctPlayerTo(position: THREE.Vector3, heading?: number): void {
+    if (!this.playerSpawnReleased) return;
+
+    this.player.teleportTo(position);
+    if (heading !== undefined) this.player.setRotationYaw(heading);
+    this.needsUpdate = true;
+  }
+
+  /** Server-authoritative "stop where you are" (StopMove). */
+  public stopPlayer(): void {
+    this.player.stopMoving();
   }
 
   /** Undo the wyvern-sized collider `setFlying(true)` installs. No-op if nothing was snapshotted. */

@@ -95,7 +95,9 @@ A `const … as const` map (never a TS `enum`, deliberately — `isolatedModules
 login's in/out numbers collide, e.g. `RequestGGAuth` and `PlayOk` are both `0x07`, hence the
 `in`/`out` split under `login`/`game`). Carries `LOGIN_FAIL_REASONS` / `describeLoginFail` for
 human-readable `LoginFail`/`PlayFail` reasons, and the four HighFive-specific corrections
-documented at the top of the file (see above).
+documented at the top of the file (see above). Also carries the movement opcodes (`MoveToLocation`,
+`ValidatePosition` outgoing; `MoveToLocation`, `StopMove`, `ValidateLocation` incoming) - see
+"Outgoing movement" below for the field-order trap between the two same-named `MoveToLocation`s.
 
 ## Login FSM — `login-client.ts`
 
@@ -187,6 +189,45 @@ IN_GAME`, plus `DISCONNECTED` / `FAILED`. `L2Session.start()` never throws or re
 failure is folded into the snapshot's `FAILED` phase plus one `console.error`. `restart()` tears
 down and re-runs the whole thing (used by the HUD's Reconnect button).
 
+## Outgoing movement
+
+The character's real position now reaches the server, not just the other way round. Two client
+packets, both `ConnectionState.IN_GAME`-only on the server (`gameserver/network/ClientPackets.java`):
+
+| Packet | Opcode | Body | Sent when |
+| --- | --- | --- | --- |
+| `MoveToLocation` (the doc's `MoveBackwardToLocation`) | `0x0F` | `targetX/Y/Z, originX/Y/Z, movementMode` | click-to-move, from `RenderManager.onPlayerMoveRequest` |
+| `ValidatePosition` | `0x59` | `x, y, z, heading, vehicleId` | a ticker in `net-world-bridge.ts`, `L2_VALIDATE_MS` (default 1000ms, matching retail) |
+
+Builders live in [src/net/packets/movement.ts](../src/net/packets/movement.ts) (pure functions,
+unit-tested without a socket - unlike every other outgoing packet, which is assembled inline in
+`game-client.ts`). `GameClient.sendMoveToLocation`/`sendValidatePosition` are the only public
+send methods besides the constructor-driven handshake; both silently no-op outside `IN_GAME` or
+on a closed connection, matching what the server would do to them anyway.
+
+**Field-order trap**: the server ALSO has a packet named `MoveToLocation` going the other way
+(`0x2F`, a broadcast), and its field order is `objectId, dstX, dstY, dstZ, x, y, z` -
+**destination before origin**, the reverse of the client's own `0x0F`. Do not copy one layout to
+the other. `StopMove` (`0x47`) and `ValidateLocation` (`0x79`) share one layout,
+`objectId, x, y, z, heading`; all three parsers live in
+[src/net/parsers/movement.ts](../src/net/parsers/movement.ts) and are filtered against the
+session's own `objectId` (tracked from `CharSelected`/`UserInfo`) before `GameClient` fires an
+event - these are broadcasts covering every actor in view range, not just us.
+
+`src/net/session.ts`'s `onCorrection(loc, kind)` handler deliberately bypasses `place()` and its
+`userInfo`-is-never-overridden coordinate priority: that rule exists for the placement race
+between the three handshake hints, and by the time `IN_GAME` is reached `userInfo` has always
+already fired, so routing a correction through `place()` would just be dropped. Corrections snap
+the pawn via `RenderManager.correctPlayerTo` (`StopMove` also calls `stopPlayer()`), gated on
+`isPlayerHoldReleased()` - while the boot/spawn flying hold is still up the pawn's Z is fiction,
+and the server's own `ValidatePosition.java` would ignore us too (`isFalling`/z-range checks) - so
+the ticker in `net-world-bridge.ts` doesn't start sending until the hold clears. The bridge also
+mirrors the server's own `MoveToLocation.java` rejection guards (target too far, or too close to
+the last click) before sending, purely to avoid a doomed packet.
+
+`PawnMovementComponent.getRotationYaw()`/`setRotationYaw()` already speak the wire unit
+(`0..65535`) - no conversion needed for `heading`.
+
 ## `src/game/net-world-bridge.ts` — the only file that imports both sides
 
 `attachNetSession(renderManager, cfg)` is the single seam between `src/net/**` (three.js-free)
@@ -237,6 +278,7 @@ session is enabled, so a no-network boot is visually unchanged. Its "Reconnect" 
 | `L2_CHAR_SLOT` | `0` | must exist on the account |
 | `L2_PROTOCOL` | `267` | HighFive; must be in the server's `ServerConfig.PROTOCOL_LIST` |
 | `L2_PING_MS` | `30000` | client-initiated keepalive interval, see the reversed-ping note above |
+| `L2_VALIDATE_MS` | `1000` | ValidatePosition ticker interval, see "Outgoing movement"; `0` disables it |
 
 `?nonet` on the URL disables the session regardless of `.env`.
 
@@ -245,6 +287,7 @@ session is enabled, so a no-network boot is visually unchanged. Its "Reconnect" 
 Unlike the rest of the codebase (see [testing.md](testing.md)), this layer has real unit
 coverage because it is pure logic with no three.js/DOM/UE2-binary dependency:
 `packet-codec.spec.ts`, `crypto.spec.ts`, `parsers.spec.ts`, `world-tile.spec.ts`,
-`ws-transport.spec.ts`. Add tests here the normal way (`npx vitest run src/net/...`); there is
-no equivalent of `?sectorTest` for the network stack — testing it end-to-end means running
-`npm run dev` against a real login/game server.
+`ws-transport.spec.ts`, `packets/movement.spec.ts`, `parsers/movement.spec.ts`. Add tests here
+the normal way (`npx vitest run src/net/...`); there is no equivalent of `?sectorTest` for the
+network stack — testing it end-to-end means running `npm run dev` against a real login/game
+server.
