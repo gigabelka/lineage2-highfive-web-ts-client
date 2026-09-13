@@ -421,10 +421,15 @@ class RenderManager implements IPhysicsHost {
   /** The boot-time hardcoded player spawn point sits near the active debug camera preset, which
    * is an aerial shot with no ground anywhere near it (real terrain is >1000 units straight down) -
    * gravity would otherwise carry the player out of frame the instant its sector's collision
-   * streams in. `setFlying(true)` at spawn (constructor) holds it in place until the player's
-   * first click-to-move, at which point `onHandleGroundClick` releases it back to normal physics.
-   * See "player and NPC not visible" fix. */
+   * streams in. `setFlying(true)` at spawn (constructor) holds it in place until the world around
+   * it is actually ready (`isWorldReadyForPlayer`) - either via a click-to-move (`onHandleGroundClick`)
+   * or the network bridge's `releasePlayerHold`. See "player and NPC not visible" fix. */
   protected playerSpawnReleased = false;
+
+  /** Mirrors `playerSpawnReleased` for visibility: the player is hidden for the entire hold so a
+   * half-streamed world (grey fallback materials, floating collision-less geometry) is never shown
+   * with the character standing in it. See `hidePlayerUntilReady`/`revealPlayer`. */
+  protected playerRevealed = true;
 
   /** The pawn's real collision size, snapshotted before `setFlying(true)` clobbers it - see
    * `placePlayerAt`. Null when the player is not being held. */
@@ -792,6 +797,7 @@ class RenderManager implements IPhysicsHost {
       height: this.player.getCollisionHeight(),
     };
     this.player.setFlying(true);
+    this.hidePlayerUntilReady();
 
     addResizeListeners(this);
   }
@@ -1286,13 +1292,12 @@ class RenderManager implements IPhysicsHost {
       if (physicsHit) {
         // Release the boot-time floating spawn (see the constructor and playerSpawnReleased doc
         // comment) the first time the player is sent somewhere - from here on it falls/walks like
-        // any other click-to-move destination.
+        // any other click-to-move destination. Ignore the click outright while the world is still
+        // streaming in (isWorldReadyForPlayer) - releasing here would drop the player into a
+        // sector whose collision/materials aren't fully built yet.
         if (!this.playerSpawnReleased) {
-          this.playerSpawnReleased = true;
-          this.player.setFlying(false);
-          // setFlying(true) at spawn swapped in the wyvern collider and setFlying(false) does
-          // not restore it; releasePlayerHold's helper does.
-          this.restorePlayerCollisionSize();
+          if (!this.isWorldReadyForPlayer(this.player.position)) return;
+          this.releasePlayerHold();
         }
 
         // Snapshot the origin BEFORE goTo - goTo only sets a desired target for the movement
@@ -1458,6 +1463,7 @@ class RenderManager implements IPhysicsHost {
     this.player.teleportTo(position);
     this.player.setFlying(true);
     this.playerSpawnReleased = false;
+    this.hidePlayerUntilReady();
 
     if (opts?.moveCamera !== false) {
       /* Moving the camera is also what starts the streaming: AssetManager.tick reads the camera
@@ -1486,9 +1492,30 @@ class RenderManager implements IPhysicsHost {
     this.playerSpawnReleased = true;
     this.player.setFlying(false);
     this.restorePlayerCollisionSize();
+    this.revealPlayer();
     this.needsUpdate = true;
 
     console.info("[net] player hold released - gravity and collision are live");
+  }
+
+  /** Hide the player while the world around it is still streaming in - see `playerRevealed`. */
+  protected hidePlayerUntilReady(): void {
+    if (!this.playerRevealed) return;
+
+    this.playerRevealed = false;
+    this.player.visible = false;
+  }
+
+  /**
+   * Show the player again. Called by `releasePlayerHold` once the world is ready, and by the
+   * network bridge on its dead-end paths (tile not in the asset install, hold timeout) so the
+   * player is never left invisible forever. Safe to call more than once.
+   */
+  public revealPlayer(): void {
+    if (this.playerRevealed) return;
+
+    this.playerRevealed = true;
+    this.player.visible = true;
   }
 
   /**
@@ -1571,6 +1598,22 @@ class RenderManager implements IPhysicsHost {
     const sector = this.getSector(position);
 
     return !!sector && !!sector.staticMeshGroup;
+  }
+
+  /**
+   * The world under the player is actually ready to receive physics, not just the sector it
+   * stands in: the streamer has nothing left in flight or waiting on a static-mesh build
+   * (`AssetManager.isStreamingSettled`), and no sector is still wearing grey fallback materials
+   * waiting on a GPU texture upload (`pendingSectorWarmups` - see `processSectorWarmups`). Used
+   * to gate releasing the flying hold, so the player never drops into a sector that still has
+   * geometry or materials in flight nearby.
+   */
+  public isWorldReadyForPlayer(position: THREE.Vector3): boolean {
+    return (
+      this.isSectorCollisionReady(position) &&
+      this.assetManager.isStreamingSettled() &&
+      this.pendingSectorWarmups.length === 0
+    );
   }
 
   // --- IPhysicsHost (the donor project's PhysicsManager, folded into RenderManager) ---------

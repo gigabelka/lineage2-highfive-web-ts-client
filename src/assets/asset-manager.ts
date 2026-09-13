@@ -154,6 +154,21 @@ class AssetManager {
     return this.levelSectors.has(sectorIdx.toLowerCase());
   }
 
+  /**
+   * Nothing left in the pipeline: no decode is in flight and no sector is still waiting for its
+   * time-sliced static-mesh build, i.e. everything the streamer wanted around the camera has made
+   * it all the way to `attachStaticMeshGroup` (which is what registers the mesh colliders).
+   *
+   * `failedSectors` is deliberately not consulted - a sector that failed to decode is already out
+   * of the streaming set, and counting it would keep this false forever. The caller's timeout is
+   * what covers that case.
+   */
+  public isStreamingSettled(): boolean {
+    return (
+      this.inFlightSectors.size === 0 && this.pendingStaticMeshBuilds.length === 0
+    );
+  }
+
   public async initialize(renderManager: RenderManager): Promise<void> {
     this.glCapabilities = renderManager.renderer.capabilities;
 

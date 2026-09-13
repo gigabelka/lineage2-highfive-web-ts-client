@@ -27,12 +27,6 @@ import type { HeadedLocation } from "@client/net/parsers/movement";
 /** How often to check whether the target sector has streamed in. */
 const HOLD_POLL_MS = 250;
 
-/**
- * Static-mesh building is time-sliced across frames after the sector object exists, so give it
- * a couple more polls before handing the pawn to gravity.
- */
-const HOLD_EXTRA_POLLS = 2;
-
 /** Past this the sector is not coming; stay flying rather than sink out of the world. */
 const HOLD_TIMEOUT_MS = 20000;
 
@@ -100,8 +94,10 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
   };
 
   /**
-   * Wait for the sector the player was just placed in to exist (which is also when its
-   * collidables are registered with the CollisionWorld), then release the flying hold.
+   * Wait for the sector the player was just placed in to exist (which is when its collidables are
+   * registered with the CollisionWorld) AND for `RenderManager.isWorldReadyForPlayer` to go true
+   * (geometry built, no decode in flight, no sector still waiting on a texture upload), then
+   * release the flying hold. The player stays hidden the whole time (see `hidePlayerUntilReady`).
    */
   const watchForGround = (target: Vector3): void => {
     stopHoldWatch();
@@ -112,6 +108,7 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
       /* The server put the character on a tile this asset install does not have. Visible and at
          the right coordinates beats invisible at the bottom of the world, so keep flying. */
       console.error(`[net] sector ${tile.id} is not in the asset install - the player stays flying`);
+      renderManager.revealPlayer();
       hudExtra = { ...hudExtra, tileAvailable: false, hold: "no-collision" };
       return repaint();
     }
@@ -120,7 +117,6 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
     repaint();
 
     const startedAt = Date.now();
-    let settledPolls = 0;
 
     holdTimer = setInterval(() => {
       if (renderManager.getSector(target) !== null) {
@@ -129,9 +125,7 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
           repaint();
         }
 
-        settledPolls += 1;
-
-        if (settledPolls > HOLD_EXTRA_POLLS) {
+        if (renderManager.isWorldReadyForPlayer(target)) {
           stopHoldWatch();
           renderManager.releasePlayerHold();
           hudExtra = { ...hudExtra, hold: "released" };
@@ -146,6 +140,7 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
         console.warn(
           `[net] sector ${tile.id} did not stream in within ${HOLD_TIMEOUT_MS / 1000}s - the player stays flying`,
         );
+        renderManager.revealPlayer();
         hudExtra = { ...hudExtra, hold: "no-collision" };
         repaint();
       }
