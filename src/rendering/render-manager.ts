@@ -436,6 +436,15 @@ class RenderManager implements IPhysicsHost {
 
   /** Physics components registered with this manager; it plays the donor project's PhysicsManager role. */
   protected readonly physicsComponents = new Set<IPhysicsComponent<any>>();
+  // Fixed-step accumulator constants (donor's PhysicsManager.PLAYER_PHYSICS_HZ/PHYSICS_HZ). Both
+  // gates below must integrate on these fixed intervals, not the variable rAF frame delta, or
+  // movement speed depends on frame rate and dropped-tick frames desync the root transform from
+  // the (frame-rate-correct) AnimationMixer - the running-only jitter/"double image" bug.
+  protected static readonly PLAYER_PHYSICS_HZ = 60;
+  protected static readonly PHYSICS_HZ = 30;
+  protected static readonly PLAYER_PHYSICS_INTERVAL_MS = 1000 / RenderManager.PLAYER_PHYSICS_HZ;
+  protected static readonly PHYSICS_INTERVAL_MS = 1000 / RenderManager.PHYSICS_HZ;
+  protected static readonly MAX_PHYSICS_TICKS = 8;
   protected nextPlayerTick = 0;
   protected nextPawnTick = 0;
 
@@ -553,6 +562,7 @@ class RenderManager implements IPhysicsHost {
     this.wireEmitterVisibilityHandlers();
 
     this.physicsWorld = new RAPIER.World(new Vector3(0, 0, -9.8 * 100));
+    this.physicsWorld.timestep = 1 / RenderManager.PHYSICS_HZ;
 
     // The analytical "ue" backend (collision-primitive.ts) is now the default - it's fully
     // implemented and tested (collision-primitive.test.ts) and, unlike Rapier's static heightfield
@@ -2960,49 +2970,71 @@ class RenderManager implements IPhysicsHost {
     this.audioManager.update(currentTime);
 
     /*
-     * Component presentation (`BaseActor.updatePresentation` -> `updateComponents`, i.e. the
-     * AnimationComponent's cross-fade bookkeeping and notify dispatch) is ticked by the two physics
-     * blocks below: `player.update` at 60 Hz and `pawn.update` at 30 Hz. The donor's separate
-     * per-frame `updatePawnPresentation` pass over its pawn-renderable registry is deliberately NOT
-     * ported - it exists there because the donor has no player pawn tick, and adding it here would
-     * tick the player's components a second and third time every frame for no gain.
-     * (`pawnRenderables` feeds visibility/frustum only.)
+     * Fixed-step accumulators (donor's PhysicsManager.onBeforeEngineTick pattern): a `while` that
+     * catches up on however many intervals actually elapsed, feeding each component the *fixed*
+     * interval rather than the variable rAF `deltaTime`, and re-seeding the schedule with `+=` so a
+     * rAF timestamp landing a fraction of a ms short of the next tick never silently drops it. The
+     * previous single `if (next <= currentTime) next = currentTime + interval` gate did all three
+     * wrong: it lost whole ticks on the (frequent) frame where `currentTime` fell just short of
+     * `next`, and even on a firing frame it advanced physics by the *frame* delta instead of the
+     * fixed interval - so root-transform movement was uneven and desynced from the AnimationMixer
+     * (which always advances by the true frame delta, every frame, at :2875-ish). Idle motion never
+     * moves the root so this was invisible; running exposed it as a hold-then-double-step judder.
+     * Bounded by MAX_PHYSICS_TICKS with a hard resync after, same as the donor, so a debugger pause
+     * or tab-backgrounding doesn't spiral into catching up hundreds of ticks at once.
      */
 
-    // 60 Hz: the player's own physics. physicsWorld.step() used to run exactly once in
-    // startRendering(); the pawn controller needs the broad phase refreshed every tick.
-    if (this.nextPlayerTick <= currentTime) {
-      this.nextPlayerTick = currentTime + 1000 / 60;
+    // 60 Hz: the player's own physics.
+    let playerTicks = 0;
 
-      this.physicsWorld.step();
-
+    while (this.nextPlayerTick <= currentTime && playerTicks++ < RenderManager.MAX_PHYSICS_TICKS) {
       for (const component of this.physicsComponents) {
         if (!component.onPhysicsTick) continue;
         if ((component.getPhysicsTickRate?.() ?? 30) < 60) continue;
 
-        component.onPhysicsTick(currentTime, deltaTime, EMPTY_ACTORS);
+        component.onPhysicsTick(this.nextPlayerTick, RenderManager.PLAYER_PHYSICS_INTERVAL_MS, EMPTY_ACTORS);
       }
 
-      this.player.update(this, currentTime, deltaTime);
+      this.nextPlayerTick += RenderManager.PLAYER_PHYSICS_INTERVAL_MS;
     }
 
-    // 30 Hz: every other pawn.
-    if (this.nextPawnTick <= currentTime) {
-      this.nextPawnTick = currentTime + 1000 / 30;
+    if (this.nextPlayerTick <= currentTime) this.nextPlayerTick = currentTime + RenderManager.PLAYER_PHYSICS_INTERVAL_MS;
+
+    // 30 Hz: every other pawn, plus the shared Rapier broad phase (nothing reads it under the
+    // default analytical "ue" backend - see CollisionWorld.usesRapier()/setBackend - only the
+    // debug ?collisionBackend=rapier/compare modes actually query it).
+    let pawnTicks = 0;
+
+    while (this.nextPawnTick <= currentTime && pawnTicks++ < RenderManager.MAX_PHYSICS_TICKS) {
+      if (this.collisionWorld.usesRapier()) this.physicsWorld.step();
 
       for (const component of this.physicsComponents) {
         if (!component.onPhysicsTick) continue;
         if ((component.getPhysicsTickRate?.() ?? 30) >= 60) continue;
 
-        component.onPhysicsTick(currentTime, deltaTime, EMPTY_ACTORS);
+        component.onPhysicsTick(this.nextPawnTick, RenderManager.PHYSICS_INTERVAL_MS, EMPTY_ACTORS);
       }
 
-      for (const pawn of this.pawns) pawn.update(this, currentTime, deltaTime);
-
-      // NPC debug panel's "Follow Player" checkbox - a debug toy, not gameplay AI.
-      if (this.followPlayerEnabled && this.spawnedNpc && this.pawns.has(this.spawnedNpc))
-        this.spawnedNpc.goToActor(this.player);
+      this.nextPawnTick += RenderManager.PHYSICS_INTERVAL_MS;
     }
+
+    if (this.nextPawnTick <= currentTime) this.nextPawnTick = currentTime + RenderManager.PHYSICS_INTERVAL_MS;
+
+    // NPC debug panel's "Follow Player" checkbox - a debug toy, not gameplay AI.
+    if (this.followPlayerEnabled && this.spawnedNpc && this.pawns.has(this.spawnedNpc))
+      this.spawnedNpc.goToActor(this.player);
+
+    /*
+     * Component presentation (`BaseActor.updatePresentation` -> `updateComponents`, i.e. the
+     * AnimationComponent's cross-fade bookkeeping and notify dispatch) runs exactly once per
+     * rendered frame, on the true frame delta - matching the donor's `updatePawnPresentation`
+     * (render-manager.ts:1022-1025 there). It used to ride inside the physics `if` blocks above,
+     * which meant 0-8 calls per frame once those became catch-up loops; a component like
+     * AnimationComponent that only reads mixer/state on each call (rather than integrating time)
+     * must be driven by the render clock, not the physics clock.
+     */
+    this.player.update(this, currentTime, deltaTime / 1000);
+    for (const pawn of this.pawns) pawn.update(this, currentTime, deltaTime / 1000);
 
     this._updateObjects(currentTime, deltaTime);
 
@@ -3347,7 +3379,7 @@ class RenderManager implements IPhysicsHost {
   protected _postRender(_currentTime: number, _deltaTime: number) {}
 
   public startRendering() {
-    // physicsWorld.step() moved into the 60 Hz accumulator in _preRender.
+    // physicsWorld.step() moved into the 30 Hz pawn accumulator in _preRender (rapier-backend only).
     this.nextPhysicsTick = 3000;
     this.scene.updateMatrixWorld(true);
 
