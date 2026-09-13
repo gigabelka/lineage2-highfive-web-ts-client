@@ -94,6 +94,7 @@ const tmpPawnWorldPos = new Vector3();
 const tmpBillboardUp = new Vector3();
 const tmpBillboardFront = new Vector3();
 const tmpBillboardRight = new Vector3();
+const tmpCameraFollowDelta = new Vector3();
 const OFFSCREEN_EMITTER_HZ = 2;
 const OFFSCREEN_EMITTER_INTERVAL_MS = 1000 / OFFSCREEN_EMITTER_HZ;
 const MIN_DESIRED_FRAME_RATE = 35; // Lineage II configures UE2's MinDesiredFrameRate to 35. UE2 raises bDropDetail below that rate, then bAggressiveLOD another 5 FPS lower.
@@ -2833,7 +2834,17 @@ class RenderManager implements IPhysicsHost {
     this.frustum.setFromProjectionMatrix(this.lastProjectionScreenMatrix);
 
     if (this.isOrbitControls && this.cameraFollowsPlayer) {
+      // Translate the camera by the same delta as the target instead of just re-pointing target
+      // at the player and letting update() re-derive spherical.radius from the raw offset: since
+      // the player rarely moves exactly along the current camera->target vector, that
+      // re-derivation would nudge the radius by a few units every frame with nothing to clamp it
+      // back (minDistance/maxDistance are unset) - a slow, visible "distance drift". Moving both
+      // points by the same vector keeps camera.position - target bit-for-bit identical, so
+      // update() reconstructs the exact same radius/angles and only layers the user's own
+      // drag-rotate/zoom deltas on top, on all three axes.
+      tmpCameraFollowDelta.copy(this.player.position).sub(this.controls.orbit.target);
       this.controls.orbit.target.copy(this.player.position);
+      this.camera.position.add(tmpCameraFollowDelta);
       this.controls.orbit.update();
     }
 
