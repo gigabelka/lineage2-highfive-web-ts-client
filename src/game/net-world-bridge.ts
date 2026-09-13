@@ -32,12 +32,24 @@ const HOLD_EXTRA_POLLS = 2;
 /** Past this the sector is not coming; stay flying rather than sink out of the world. */
 const HOLD_TIMEOUT_MS = 20000;
 
-export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): L2Session {
+export interface NetSessionHandle {
+  session: L2Session;
+  /** Resolves once the session reaches IN_GAME, or gives up (FAILED/DISCONNECTED). Never rejects. */
+  connected: Promise<void>;
+}
+
+export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): NetSessionHandle {
   const position = new Vector3();
 
   let holdTimer: ReturnType<typeof setInterval> | null = null;
   let hudExtra: HudExtra = {};
   let lastSnapshot: SessionSnapshot | null = null;
+  let resolveConnected: () => void;
+  let settled = false;
+
+  const connected = new Promise<void>((resolve) => {
+    resolveConnected = resolve;
+  });
 
   const stopHoldWatch = (): void => {
     if (holdTimer === null) return;
@@ -119,6 +131,14 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
 
       if (snapshot.phase === "FAILED" || snapshot.phase === "DISCONNECTED") stopHoldWatch();
 
+      if (
+        !settled &&
+        (snapshot.phase === "IN_GAME" || snapshot.phase === "FAILED" || snapshot.phase === "DISCONNECTED")
+      ) {
+        settled = true;
+        resolveConnected();
+      }
+
       hud.update(snapshot, hudExtra);
     },
     onPlace,
@@ -133,7 +153,7 @@ export function attachNetSession(renderManager: RenderManager, cfg: NetConfig): 
   hud.update(session.snapshot, hudExtra);
   session.start();
 
-  return session;
+  return { session, connected };
 }
 
 export default attachNetSession;

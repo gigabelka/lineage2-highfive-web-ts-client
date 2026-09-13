@@ -59,19 +59,28 @@ async function startCore() {
 
   (global as any).renderManager = renderManager;
 
-  /* Live-server session. Fire-and-forget on purpose: the handshake runs concurrently with
-     asset initialization below (the slow part), so the coordinates normally land before
-     startRendering() and the first AssetManager.tick. Nothing here is awaited - a dead server,
-     a missing .env or a bad password must never stop the renderer from booting; failures show
-     up in the HUD, in one console.error, and in `l2Session.snapshot`. */
+  /* Live-server session. When enabled, NOTHING is rendered - no textures, no character, no
+     location, not a single renderer.render() call - until the handshake below reaches IN_GAME
+     (or gives up). assetManager.initialize() and renderManager.startRendering() are the only
+     things that ever touch the GL canvas or decode assets, and both sit after `await connected`
+     below, so the canvas stays untouched while only the DOM-based service windows (net HUD,
+     lil-gui panel) are visible. This avoids burning a wasted streaming pass around the default
+     startup camera position before the server hands over the character's real coordinates. A
+     dead server, a missing .env or a bad password must still never stop the renderer from
+     booting - `connected` also resolves on FAILED/DISCONNECTED; failures show up in the HUD, in
+     one console.error, and in `l2Session.snapshot`. */
   const netConfig = loadNetConfig();
+  let connected: Promise<void> = Promise.resolve();
 
   if (netConfig.enabled) {
-    (global as any).l2Session = attachNetSession(renderManager, netConfig);
+    const net = attachNetSession(renderManager, netConfig);
+    (global as any).l2Session = net.session;
+    connected = net.connected;
   }
 
   const objectGroup = renderManager.objectGroup;
 
+  await connected;
   await assetManager.initialize(renderManager);
 
   renderManager.addClippingRangeControls();
