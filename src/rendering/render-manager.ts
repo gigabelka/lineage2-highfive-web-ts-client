@@ -78,6 +78,7 @@ Object.assign(gui.domElement.style, {
   zIndex: "10000",
 });
 document.body.appendChild(gui.domElement);
+gui.close();
 const guiFolders = {
   world: gui.addFolder("World"),
   quality: gui.addFolder("Quality"),
