@@ -403,7 +403,7 @@ class RenderManager implements IPhysicsHost {
    * is an aerial shot with no ground anywhere near it (real terrain is >1000 units straight down) -
    * gravity would otherwise carry the player out of frame the instant its sector's collision
    * streams in. `setFlying(true)` at spawn (constructor) holds it in place until the player's
-   * first click-to-move, at which point `onHandleMouseUp` releases it back to normal physics.
+   * first click-to-move, at which point `onHandleDoubleClick` releases it back to normal physics.
    * See "player and NPC not visible" fix. */
   protected playerSpawnReleased = false;
 
@@ -710,7 +710,7 @@ class RenderManager implements IPhysicsHost {
 
     viewport.appendChild(this.renderer.domElement);
 
-    viewport.addEventListener("mouseup", this.onHandleMouseUp.bind(this));
+    viewport.addEventListener("dblclick", this.onHandleDoubleClick.bind(this));
     window.addEventListener("keydown", this.onHandleKeyDown.bind(this));
     window.addEventListener("keyup", this.onHandleKeyUp.bind(this));
     this.controls.fps.addEventListener(
@@ -741,7 +741,7 @@ class RenderManager implements IPhysicsHost {
     // in front of the active camera preset ("tower outside", Cruma). This spot is a floating
     // aerial vantage - real ground is >1000 units straight down, well outside the camera's view -
     // so the player is held with setFlying(true) rather than left to fall out of frame; the first
-    // click-to-move (onHandleMouseUp) releases it back to normal ground physics.
+    // click-to-move (onHandleDoubleClick) releases it back to normal ground physics.
     // Overridden once the network session reports real coordinates - see `placePlayerAt`.
     this.player.position.set(13584.5, 114414.37, -3472.6);
     /* Snapshot the pristine collision size before setFlying(true) swaps in the wyvern 60/80;
@@ -1201,7 +1201,7 @@ class RenderManager implements IPhysicsHost {
     }
   }
 
-  public onHandleMouseUp(event: MouseEvent) {
+  public onHandleDoubleClick(event: MouseEvent) {
     if (event.button !== 0 || !this.isOrbitControls) return;
 
     try {

@@ -108,6 +108,12 @@ const DEFAULT_VOLUME_GRAVITY_Z = -1500; // Engine.u PhysicsVolume default Gravit
 const YAW_RATE = 65000; // Live retail FMagic RotationRate.Yaw.
 const PLAYER_YAW_RATE = 45000 * 2; // Live Controller.EnemyTurnSpeed; APawn::physicsRotation doubles it.
 const SPAWN_FLOOR_PROBE = 1000;
+// New safety net for click-to-move (not from disassembly): the world raycast in RenderManager hits
+// visual meshes, not the collision world, so a clicked point can land over a gap in the collision
+// geometry (decorative meshes, BSP seams) with no floor under it. Ring-search outward for the
+// nearest point that does have one instead of sending the pawn straight into a fall.
+const GOTO_FLOOR_SEARCH_RADII = [50, 100, 150, 200];
+const GOTO_FLOOR_SEARCH_ANGLES = 8;
 const DEFAULT_VOLUME_TERMINAL_VELOCITY = 2500; // Engine.u PhysicsVolume default TerminalVelocity.
 const WATERLINE_DEPTH = 13; // Retail APawn::findWaterLine 0x8d2959.
 // APawn::SpawnEnterEvent (0x8b47e0): rise moves 5/9 of its full offset per second.
@@ -1054,14 +1060,46 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
         this.getParent().playMovementAnimation(state);
     }
 
+    /**
+     * Finds a point near `target` that has a valid floor under it (`findFloor`, same `MIN_FLOOR_Z`
+     * test used at spawn), ring-searching outward by `GOTO_FLOOR_SEARCH_RADII` if `target` itself has
+     * none. Returns `null` if nothing valid was found within the search radius.
+     */
+    protected resolveGroundTarget(target: Vector3): Vector3 | null {
+        const movement = tmpMovement.set(0, 0, -SPAWN_FLOOR_PROBE);
+
+        if (this.findFloor(target, movement)) return target;
+
+        for (const radius of GOTO_FLOOR_SEARCH_RADII) {
+            for (let i = 0; i < GOTO_FLOOR_SEARCH_ANGLES; i++) {
+                const angle = (i / GOTO_FLOOR_SEARCH_ANGLES) * Math.PI * 2;
+                const candidate = new Vector3(
+                    target.x + Math.cos(angle) * radius,
+                    target.y + Math.sin(angle) * radius,
+                    target.z,
+                );
+
+                if (this.findFloor(candidate, movement)) return candidate;
+            }
+        }
+
+        return null;
+    }
+
     public goTo(position: Vector3) {
         if (!this.isInteractive()) return;
 
-        console.log(`[actor] goTo from=(${this.position.x}, ${this.position.y}, ${this.position.z}) to=(${position.x}, ${position.y}, ${position.z})`);
+        const target = this.physicsMode === "flying" || this.physicsMode === "swimming"
+            ? position
+            : this.resolveGroundTarget(position);
+
+        if (!target) return;
+
+        console.log(`[actor] goTo from=(${this.position.x}, ${this.position.y}, ${this.position.z}) to=(${target.x}, ${target.y}, ${target.z})`);
         this.actorState.locomotion = true;
-        this.actorState.desired.position.copy(position);
+        this.actorState.desired.position.copy(target);
         this.actorState.desired.actor = null;
-        this.actorState.desired.swimToDepth = !!this.getWaterVolumeAt(position);
+        this.actorState.desired.swimToDepth = !!this.getWaterVolumeAt(target);
         this.actorState.desired.offset = 0;
         this.actorState.desired.faceMovement = true;
         this.actorState.desired.faceTarget = null;
