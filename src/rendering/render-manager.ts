@@ -115,6 +115,8 @@ const tmpColorByte_2 = new ColorByte();
 const tmpColorByte_3 = new ColorByte(); // For sky color blending
 const tmpColorByte_4 = new ColorByte(); // For haze color blending
 const tmpColorByte_5 = new ColorByte(); // For cloud color blending
+const tmpColorByteSky = new ColorByte(); // sky color, kept apart from the zone-fog scratch
+let lastFogDiagKey = ""; // TEMP DIAG (remove)
 
 const DEFAULT_FAR = 100_000_000;
 const DEFAULT_CLEAR_COLOR = 0x0c0c0c;
@@ -2529,7 +2531,7 @@ class RenderManager implements IPhysicsHost {
     if (!env) return;
 
     // base sky color from timeenv, blended with L2FogInfo later
-    const targetSkyColor = env.getSkyColor(tmpColorByte);
+    const targetSkyColor = env.getSkyColor(tmpColorByteSky);
 
     // fog defaults from Env.int [FOG] StartRange1=1.0 (2000u), EndRange1=4.0 (8000u)
     // range scale factor 2048, derived from trace: 2.5 * 2048 = 5120
@@ -2707,7 +2709,10 @@ class RenderManager implements IPhysicsHost {
         if (!range || (range.A === 0 && range.B === 0)) {
           range = fogInfo.fogRange1;
         }
-        if (!range) return;
+        // fogRange1 can be {0,0} too - accumulating it collapses the scene fog to
+        // near==far==0, and the shader's (depth-near)/(far-near) then saturates to
+        // 1 everywhere, painting every fogged surface flat fogColor/black/grey
+        if (!range || range.B <= range.A) return;
 
         const fogColor = interpolateFogInfoColor(
           timeOfDay,
@@ -2798,7 +2803,7 @@ class RenderManager implements IPhysicsHost {
         }
       });
 
-      if (this.activeFogId) {
+      if (this.activeFogId && totalFogWeight > 0) {
         // If a zone fog is active, it completely overrides the global fog palette
         targetFogStart = accStart / totalFogWeight;
         targetFogEnd = accEnd / totalFogWeight;
@@ -2810,6 +2815,25 @@ class RenderManager implements IPhysicsHost {
         );
       } else {
         // No active zone fog - already has default values from Env.int
+      }
+
+      // TEMP DIAG (remove): confirms which zone-fog branch drives the scene fog
+      const diagKey = `${this.activeFogId}|${activeInfos.length}|${totalFogWeight}|${targetFogStart}|${targetFogEnd}`;
+      if (diagKey !== lastFogDiagKey) {
+        lastFogDiagKey = diagKey;
+        console.log(
+          "[fog-diag]",
+          "activeFogId=", this.activeFogId,
+          "activeInfos=", activeInfos.length,
+          "totalFogWeight=", totalFogWeight,
+          "start=", targetFogStart,
+          "end=", targetFogEnd,
+          "color=", targetFogColor.toHex(),
+          "rawRanges=", activeInfos.map(({ fogInfo }) => [
+            fogInfo[`fogRange${presetIndex}`],
+            fogInfo.fogRange1,
+          ]),
+        );
       }
 
       if (totalSkyWeight > 0 && this.activeFogId) {
