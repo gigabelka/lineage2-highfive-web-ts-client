@@ -466,7 +466,7 @@ class RenderManager implements IPhysicsHost {
 
   public envConfig = {
     showLevel: true,
-    fogPreset: "4",
+    fogPreset: "2",
     moverPosition: 0,
   };
 
@@ -1830,22 +1830,31 @@ class RenderManager implements IPhysicsHost {
   public addClippingRangeControls(): void {
     const clippingRange = this.assetManager.userConfig.clippingRange;
 
+    const applyActorRange = (): void => {
+      this.sectors.forEach((column) =>
+        column.forEach(
+          (sector) => ((sector as any).visibilityCacheInitialized = false),
+        ),
+      );
+      this.needsUpdate = true;
+    };
+
+    // client-side default on top of the ini value
+    clippingRange.actor = 6;
+    applyActorRange();
+
     guiFolders.quality
       .add(clippingRange, "actor", 1, 12, 0.5)
       .name("Emitter Range")
-      .onChange(() => {
-        this.sectors.forEach((column) =>
-          column.forEach(
-            (sector) => ((sector as any).visibilityCacheInitialized = false),
-          ),
-        );
-        this.needsUpdate = true;
-      });
+      .onChange(applyActorRange);
   }
 
   public addDisplayGammaControls(): void {
     const display = this.assetManager.userConfig.display;
-    display.gamma = 0;
+    display.gamma = 1.2;
+    this.displayGammaEnabled = true;
+    this.displayGammaPass.setRamp(display);
+    this.needsUpdate = true;
 
     const steps = GAMMA_STEPS.reduce(
       (acc, g) => ((acc[g.toFixed(1)] = g), acc),
