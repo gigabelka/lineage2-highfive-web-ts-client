@@ -11,6 +11,7 @@ import {
   SCHEMA_MUSICINFO_DAT,
   CHARGRP_RECORD_COUNT,
   SCHEMA_ARMORGRP_DAT,
+  armorgrpRowStartsAt,
   SCHEMA_ITEMNAME_E_DAT,
   CHARACTER_ARMOR_GROUPS,
   CHARACTER_ARMOR_SLOTS,
@@ -257,28 +258,22 @@ function getCharacterArmorPaths(
   armor: Record<string, any>,
 ): CharacterPartPaths_T[] {
   const group = getCharacterArmorGroup(row);
-  const meshes = armor[`${group}_mesh`] as string[];
-  const textures = armor[`${group}_texture`] as string[];
-  const additionalMeshes = armor[`${group}_additional_mesh`] as string[];
-  const additionalTextures = armor[`${group}_additional_texture`] as string[];
+  const meshes = (armor[`${group}_mesh`] as string[]) ?? [];
+  const textures = (armor[`${group}_texture`] as string[]) ?? [];
 
-  if (meshes.length !== textures.length)
-    throw new Error(
-      `Armor '${armor.id}' has ${meshes.length} meshes and ${textures.length} textures for '${group}'.`,
-    );
-  if (additionalMeshes.length !== additionalTextures.length)
-    throw new Error(
-      `Armor '${armor.id}' has ${additionalMeshes.length} additional meshes and ${additionalTextures.length} additional textures for '${group}'.`,
-    );
+  /* Counts legitimately disagree: the Kamael column pairs one mesh with two textures (a base and a
+     `_ut` variant - `["MKamael.MKamael_m001_t02_u", "MKamael.MKamael_m001_t02_ut"]`), so this is not a
+     sign of anything wrong and warning about it would bury the log under one line per item. The meshes
+     that do pair up are what the assembly uses, and a character built from fewer parts merely looks
+     incomplete where a throw costs the whole spawn. C4's `additional_mesh`/`additional_texture` pair is
+     gone - HighFive does not carry it, and reading it is what shifted these columns. */
+  const count = Math.min(meshes.length, textures.length);
+  const parts: CharacterPartPaths_T[] = [];
 
-  return [
-    ...meshes.map(
-      (mesh, i) => [mesh, textures[i]] as CharacterPartPaths_T,
-    ),
-    ...additionalMeshes.map(
-      (mesh, i) => [mesh, additionalTextures[i]] as CharacterPartPaths_T,
-    ),
-  ].filter((part) => part[0] && part[1]);
+  for (let i = 0; i < count; i++)
+    if (meshes[i] && textures[i]) parts.push([meshes[i], textures[i]]);
+
+  return parts;
 }
 
 function getCharacterArmorLabel(
@@ -286,12 +281,14 @@ function getCharacterArmorLabel(
   itemNames: Map<number, Record<string, any>>,
 ): string {
   const item = itemNames.get(armor.id);
+  const name = (item?.name as string | undefined)?.trim();
+  const addName = (item?.add_name as string | undefined)?.trim();
 
-  if (!item || !item.name)
-    throw new Error(`Armor '${armor.id}' has no item name.`);
-
-  const name = (item.name as string).trim();
-  const addName = (item.add_name as string).trim();
+  /* `itemname-e.dat` does not decode past its third row on HighFive either (its own schema delta is
+     still open), so a missing name here is the rule rather than an error. Naming the item by id keeps
+     the armour list usable and, importantly, keeps `decodeCharGroups` alive - throwing here cost the
+     whole character panel, which is how this table failed silently before. */
+  if (!name) return `Item #${armor.id}`;
 
   return addName ? `${name} ${addName}` : name;
 }
@@ -489,9 +486,19 @@ class DecodeEngine {
     const file = await new UDataFile(
       SCHEMA_ARMORGRP_DAT,
       "/assets/system/armorgrp.dat",
+      null,
+      armorgrpRowStartsAt,
     )
       .asReadable()
       .decode();
+
+    /* The row tail past the race columns is skipped rather than modelled, so `partial` here would mean
+       the *prefix* stopped fitting too - i.e. rows are being dropped and the armour lists are short.
+       Worth shouting about: silently empty dropdowns are exactly how this table failed before. */
+    if (file.partial)
+      console.warn(
+        `[decode] armorgrp.dat did not fit the schema for every row - armour lists will be incomplete.`,
+      );
 
     this.cacheArmorGrpRows = file.datarows;
 

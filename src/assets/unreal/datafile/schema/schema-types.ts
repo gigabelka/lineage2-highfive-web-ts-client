@@ -7,6 +7,14 @@ export {
     SCHEMA_ARMORGRP_DAT,
     CHARACTER_ARMOR_GROUPS,
     CHARACTER_ARMOR_SLOTS,
+    BODY_PART_FULL_ARMOR,
+    BODY_PART_FULL_SET,
+    BODY_PART_HEAD,
+    BODY_PART_HEAD_ACCESSORY,
+    BODY_PART_RACE_ACCESSORY,
+    BODY_PART_CLOAK,
+    BODY_PART_BELT,
+    armorgrpRowStartsAt,
 } from "./armorgrp.schema";
 export { SCHEMA_HAIRGRP_DAT, HAIRGRP_RECORD_COUNT } from "./hairgrp.schema";
 export { SCHEMA_HAIRACCESSORYLOCGRP_DAT } from "./hairaccessorylocgrp.schema";

@@ -9,8 +9,11 @@ import { ASCFType } from "./schema/dat-container";
 type RowOracle_T = (readable: UDataFile, pos: number) => boolean;
 
 /* Bounded so a table with no recognizable row ever left (corrupt file, wrong schema entirely)
-   fails in milliseconds instead of scanning to EOF one byte at a time. */
-const RESYNC_SCAN_WINDOW = 8192;
+   fails in milliseconds instead of scanning to EOF one byte at a time.
+   Large enough for the widest row these tables have: an armorgrp.dat row that carries a mesh for
+   every race as a single "whole set" item runs past 8 KB, and a window shorter than the row turns a
+   single unreadable row into the end of the table. */
+const RESYNC_SCAN_WINDOW = 65536;
 
 class UDataFile extends UEncodedFile {
     public datarows: Record<string, any>[];
@@ -41,8 +44,10 @@ class UDataFile extends UEncodedFile {
 
     /* Scan forward from `from` for the next position `this.resync` accepts as a row start, bounded
        by `RESYNC_SCAN_WINDOW`. Returns null if none is found (a corrupt file, or a schema that
-       fits nothing past this point) - the caller then falls back to truncating the table. */
-    protected findNextRow(from: number): number | null {
+       fits nothing past this point) - the caller then falls back to truncating the table.
+       Public because a schema's `RestOfRowContainerType` needs it to bound a row whose tail is not
+       modelled: there, the oracle is not a recovery path but the definition of the row's end. */
+    public findNextRow(from: number): number | null {
         if (!this.resync) return null;
 
         for (let pos = from; pos < from + RESYNC_SCAN_WINDOW; pos++) {

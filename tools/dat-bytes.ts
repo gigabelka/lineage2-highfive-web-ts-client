@@ -361,6 +361,21 @@ const CHARACTER_ARMOR_GROUPS = [
   "f_orc_mystic",
 ];
 
+/* The fifteenth race column. The donor's table has no entry for Kamael (C4 predates the race), so
+   the repo's schema carries it as `unknown_mesh`/`unknown_texture` - the names are kept here so the
+   two readers stay comparable, but the column is a normal race column (`Kamael.mkamael_m002_g` and
+   friends are what `probe/row-columns.ts` reads out of it). `getCharacterArmorGroup` in the worker
+   therefore throws `Character armor group 'mkamael' does not exist.` for a Kamael character today. */
+const KAMAEL_ARMOR_GROUP = "kamael";
+
+/* Bytes between one race column's texture container and the next column's mesh container. Fixed, but
+   only as an empirical fit: `probe/walk-armorgrp.ts` walks 2765 of 2777 rows with this stride, and
+   its per-column histogram shows a handful of rows where the next column starts two bytes later. Its
+   content is one uint32 `1`, a uint32 `0`, then `00 ff 01 00 00 00 00 00 00 00` - the `0xff` byte
+   suggests a flag, so the real shape is probably a conditional struct rather than a fixed 22. Nothing
+   the renderer needs lives here (it is the per-race material/attach block), so it is skipped. */
+const COLUMN_BLOCK_BYTES = 22;
+
 /* The head `armorgrp.dat` and `weapongrp.dat` both open with. Kept in one place because the two
    files genuinely share it - their first rows agree field for field, differing only in content -
    so a divergence found against one table extends both. */
@@ -413,6 +428,17 @@ function readItemHead(r: Reader, trace?: Record<string, FieldTrace_T>) {
   const material = end("material", r.u32());
   const crystallizable = end("crystallizable", r.u32());
   const property_params = end("property_params", r.u32());
+
+  /* Two uint32 the C4 donor does not have, then the one *variable-length* field of the head. The
+     variable one is what made the head look like a plain sequence of uint32: it is a zero-length
+     FString on most rows (4 bytes, so a `uint32` read of it returns 0 and looks like a field) and
+     carries `icon.time_tab` / `icon.*_panel` on ~600 armorgrp rows. Reading the head as six fixed
+     uint32 put `body_part` three words early - on `armorgrp` row 0 that word is 0 (an item with no
+     slot) while the true value, 21, sits 12 bytes later, and the 56-column block behind it started
+     12 bytes early as a result. See the byte-level derivation in the plan/commit message. */
+  const unknown_b0 = end("unknown_b0", r.u32());
+  const unknown_b1 = end("unknown_b1", r.u32());
+  const icon_ext = end("icon_ext", r.utf16());
   const body_part = end("body_part", r.u32());
 
   return {
@@ -432,6 +458,9 @@ function readItemHead(r: Reader, trace?: Record<string, FieldTrace_T>) {
     material,
     crystallizable,
     property_params,
+    unknown_b0,
+    unknown_b1,
+    icon_ext,
     body_part,
   };
 }
@@ -441,7 +470,11 @@ function readItemHead(r: Reader, trace?: Record<string, FieldTrace_T>) {
 const SCHEMAS: Record<
   string,
   {
-    read: (r: Reader, trace?: Record<string, FieldTrace_T>) => Record<string, unknown>;
+    read: (
+      r: Reader,
+      trace?: Record<string, FieldTrace_T>,
+      data?: Buffer,
+    ) => Record<string, unknown>;
     oracle: (data: Buffer, at: number) => boolean;
   }
 > = {
@@ -517,28 +550,19 @@ const SCHEMAS: Record<
   weapongrp: {
     read(r, trace) {
       const head = readItemHead(r, trace);
-
-      /* Three uint32 the C4 donor does not have, between `body_part` and `handness`. On the first
-         row they read 1, 0, 27; their meaning is unresolved, but they are what makes `handness`
-         land on 1 and `wpn_mesh_cnt` on 1 with the mesh string right after, so they are consumed
-         rather than denied. Naming them is a follow-up, not a blocker - nothing the renderer needs
-         lives here. */
-      const end = (name: string, value: unknown) => {
+      const end = <T,>(name: string, value: T): T => {
         if (trace) trace[name] = { at: r.tell(), value };
 
         return value;
       };
 
-      /* Conditional: present on row 514 (`body_part` 1), absent on row 1 (`body_part` 0), and its
-         absence shifts every later field by one slot - exactly the desync the trace showed. Keying
-         it on `body_part` is an empirical fit, not an explanation: it carries the walk from 514 to
-         1179 of 4060 rows and then fails again, so it is right far more often than not but is not
-         the real predicate. */
-      const unknown_b0 = end("unknown_b0", head.body_part !== 0 ? r.u32() : 0);
-
-      const unknown_b1 = end("unknown_b1", r.u32());
-      const unknown_b2 = end("unknown_b2", r.u32());
-      const unknown_b3 = end("unknown_b3", r.u32());
+      /* `body_part` comes straight out of the shared head now (27 on the one-handed first row),
+         and `handness` follows it immediately. The three uint32 that used to sit here -
+         `unknown_b0`/`unknown_b1`/`unknown_b2` plus a conditional fourth keyed on a `body_part` that
+         was really the head's first unknown - were compensating for a head that stopped three words
+         too early: the "0" they keyed on was `unk0` (0 for weapons, which is why the fit looked
+         arbitrary) and the "27" they logged as `unknown_b3` is the real body_part. With the head
+         fixed the gap closes on its own. */
       const handness = end("handness", r.u32());
 
       /* Sized, NOT count-prefixed: HighFive keeps the donor's explicit `wpn_mesh_cnt` field and
@@ -604,10 +628,6 @@ const SCHEMAS: Record<
 
       return {
         ...head,
-        unknown_b0,
-        unknown_b1,
-        unknown_b2,
-        unknown_b3,
         handness,
         wpn_mesh_cnt,
         wpn_mesh,
@@ -650,63 +670,66 @@ const SCHEMAS: Record<
     oracle: looksLikeItemRowStart,
   },
 
-  /* Mirror of the repo's working `armorgrp.schema.ts`. It lives here as the *reference* for the
-     head both item tables share: when `weapongrp` diverges, this is what says whether the shared
-     prefix is right or whether the divergence is in the table-specific tail. */
+  /* The repo's `armorgrp.schema.ts` is now the authoritative reader for this table (it is exercised
+     directly against the file by `probe/armorgrp-schema-check.ts`), so this entry exists only to dump
+     a row's head and race columns quickly while reverse-engineering.
+
+     Layout is NOT the donor's. C4 read four containers per race (`mesh`, `texture`,
+     `additional_mesh`, `additional_texture`); HighFive reads `mesh` + `texture` + a gap block after
+     every column, for fifteen columns - the fourteen race groups plus Kamael, which the donor has no
+     column for and the app's schema names `kamael`. Reading the donor's four containers is what put
+     `additional_mesh` on the gap block: its first word (1) read as a count, its second (0) as an empty
+     string's length, and its third (`00 ff 01 00`) as a 130816-element container, which is the
+     out-of-range throw on row 0.
+
+     The gap is a fixed 22 bytes on ~91% of rows. On the rest it is longer, and a fixed stride reads
+     the following columns out of alignment - so rows where it happens show garbage mesh names here.
+     The app's schema handles those by finding the next column by shape; this reader deliberately does
+     not, so that the two disagreeing is visible. */
   armorgrp: {
-    read(r, trace) {
+    read(r, trace, data) {
       const head = readItemHead(r, trace);
+      const end = <T,>(name: string, value: T): T => {
+        if (trace) trace[name] = { at: r.tell(), value };
+
+        return value;
+      };
       const groups: Record<string, string[]> = {};
 
-      for (const group of CHARACTER_ARMOR_GROUPS)
-        for (const kind of ["mesh", "texture", "additional_mesh", "additional_texture"])
-          groups[`${group}_${kind}`] = r.utf16Array();
+      for (const group of [...CHARACTER_ARMOR_GROUPS, KAMAEL_ARMOR_GROUP]) {
+        groups[`${group}_mesh`] = end(`${group}_mesh`, r.utf16Array());
+        groups[`${group}_texture`] = end(`${group}_texture`, r.utf16Array());
+        r.skip(COLUMN_BLOCK_BYTES);
+      }
 
-      const unknown_mesh = r.utf16Array();
-      const unknown_texture = r.utf16Array();
-      const npc_mesh = r.utf16Array();
-      const npc_texture = r.utf16Array();
-      const accessory_mesh = r.utf16Array();
-      const accessory_texture = r.utf16Array();
-      const attack_effect = r.utf16();
-      const item_sound = r.utf16Array();
-      const drop_sound = r.utf16();
-      const equip_sound = r.utf16();
-      const unknown_1 = r.u32();
-      const unknown_2 = r.u32();
-      const armor_type = r.u32();
-      const crystal_type = r.u32();
-      const avoid_modifier = r.u32();
-      const physical_defence = r.u32();
-      const magical_defence = r.u32();
-      const mp_bonus = r.u32();
+      /* Everything past the race columns - the Kamael column's extra pair, `npc_*`/`accessory_*`, the
+         sounds and the scalar tail - is unmodelled, and the C4 donor's shape for it does not fit
+         HighFive. The row's end is not needed here: the next row's own start is an exact anchor
+         (`drop_mesh_1` opens with `dropitems.` 32 bytes in), so the rest is skipped by finding it. */
+      const next = data ? findNextItemRow(data, r.tell()) : -1;
 
-      return {
-        ...head,
-        ...groups,
-        unknown_mesh,
-        unknown_texture,
-        npc_mesh,
-        npc_texture,
-        accessory_mesh,
-        accessory_texture,
-        attack_effect,
-        item_sound,
-        drop_sound,
-        equip_sound,
-        unknown_1,
-        unknown_2,
-        armor_type,
-        crystal_type,
-        avoid_modifier,
-        physical_defence,
-        magical_defence,
-        mp_bonus,
-      };
+      if (next > r.tell()) end("unreadTailBytes", r.tell());
+      if (next > r.tell()) r.skip(next - r.tell());
+
+      return { ...head, ...groups };
     },
     oracle: looksLikeItemRowStart,
   },
 };
+
+/* The offset of the next item-table row at or after `from`, found by the anchor every row in both
+   armorgrp.dat and weapongrp.dat begins with: `drop_mesh_1` is the seventh field, so its text starts
+   32 bytes into the row and always names a `dropitems.` mesh. Exact, where the byte-scan oracle is
+   not (~2.6 hits per row). Returns -1 when there is none left. */
+function findNextItemRow(data: Buffer, from: number): number {
+  const needle = Buffer.from("dropitems.", "utf16le");
+
+  for (let i = from; i + needle.length <= data.length; i++)
+    if (data[i] === needle[0] && data.subarray(i, i + needle.length).equals(needle))
+      return i - 32;
+
+  return -1;
+}
 
 function cmdInfo(path: string) {
   const raw = fs.readFileSync(path);
@@ -740,6 +763,17 @@ function cmdHex(path: string, offset: number, length: number) {
   }
 }
 
+/* Traces are printed for every row of a run, and a desync can turn a container into a
+   hundred-thousand-element array - serialising that verbatim dumps megabytes for one bad row. Arrays
+   past three elements are summarised by their head and length instead. */
+function traceValue(value: unknown): string {
+  if (!Array.isArray(value)) return JSON.stringify(value);
+  if (value.length <= 3)
+    return `[${value.map((item) => JSON.stringify(item)).join(",")}]`;
+
+  return `[${value.slice(0, 3).map((item) => JSON.stringify(item)).join(",")},...${value.length}]`;
+}
+
 function cmdRows(path: string, schemaName: string, fromRow: number, toRow: number) {
   const schema = SCHEMAS[schemaName];
 
@@ -753,7 +787,7 @@ function cmdRows(path: string, schemaName: string, fromRow: number, toRow: numbe
 
   const showTrace = (trace: Record<string, FieldTrace_T>) =>
     Object.entries(trace)
-      .map(([k, v]) => `${k}=${JSON.stringify(v.value)}@${v.at}`)
+      .map(([k, v]) => `${k}=${traceValue(v.value)}@${v.at}`)
       .join(" ");
 
   for (; i < rowCount; i++) {
@@ -762,7 +796,7 @@ function cmdRows(path: string, schemaName: string, fromRow: number, toRow: numbe
     let row: Record<string, unknown>;
 
     try {
-      row = schema.read(r, trace);
+      row = schema.read(r, trace, data);
     } catch (e) {
       /* The offsets of the fields that *did* read are the whole point of the trace here: they name
          the last field before the layout diverges, which an all-at-once reader cannot report

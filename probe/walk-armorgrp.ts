@@ -192,8 +192,24 @@ if (dumpAt > 0) {
   console.log(JSON.stringify(head, null, 1));
 }
 
-/* Name each body_part code by the icon slot token that carries it - the icon says which slot the
-   item goes in, independently of any enum, so a code with one token family is that slot. */
+/* The field `src/assets/unreal/datafile/schema/armorgrp.schema.ts` reads as `body_part` - the word
+   right after `property_params`, which is three words *before* the real one. Histogrammed separately
+   because it is what `CHARACTER_ARMOR_SLOTS` is compared against today: if none of those values
+   appears here, the four-slot armour in the app matches nothing and its dropdowns are empty. */
+const legacyBodyParts = new Map<number, number>();
+
+for (const start of rowStarts) {
+  const head = readHead(start);
+  if (head === null || head.bodyPart > 200) continue;
+
+  const legacy = data.readUInt32LE(head.colStart - 16);
+  legacyBodyParts.set(legacy, (legacyBodyParts.get(legacy) ?? 0) + 1);
+}
+
+console.log(`\n--- legacy (schema) body_part: word at colStart-16 ---`);
+console.log(`  ${[...legacyBodyParts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}x${v}`).join(", ")}`);
+console.log(`  values the schema compares against: 9 (gloves), 10 (chest), 11 (legs), 12 (boots)`);
+
 console.log(`\n--- body_part by icon slot token ---`);
 const byToken = new Map<number, Map<string, number>>();
 for (const start of rowStarts) {
