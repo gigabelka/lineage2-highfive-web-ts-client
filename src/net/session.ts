@@ -11,6 +11,8 @@ import type { CharacterInfo } from "@client/net/parsers/char-selection-info";
 import type { NetConfig } from "@client/net/config";
 import type { UserInfoBrief } from "@client/net/parsers/user-info";
 import type { HeadedLocation } from "@client/net/parsers/movement";
+import type { WorldEvent } from "@client/net/world-events";
+import { worldEventObjectId } from "@client/net/world-events";
 import type { Vec3I } from "@client/net/packets/movement";
 import { GameClient } from "@client/net/game-client";
 import { coordToTile } from "@client/net/world-tile";
@@ -45,6 +47,8 @@ export interface SessionSnapshot {
   lastValidateAt: number | null;
   /** How many server position corrections (ValidateLocation/StopMove) we have received. */
   corrections: number;
+  /** Distinct objectIds other than ours the server has described and not yet deleted. */
+  visibleObjects: number;
 }
 
 /** kind distinguishes the two correction packets - StopMove additionally means "halt". */
@@ -56,6 +60,11 @@ export interface SessionHandlers {
   onPlace?(x: number, y: number, z: number, source: CoordSource): void;
   /** A server-authoritative position correction for our own character. */
   onCorrection?(loc: HeadedLocation, kind: CorrectionKind): void;
+  /**
+   * Every broadcast about an actor that is NOT us. Our own movement keeps going to
+   * `onCorrection` instead, so the player path is untouched by the world view.
+   */
+  onWorldEvent?(event: WorldEvent): void;
 }
 
 export class L2Session {
@@ -63,6 +72,8 @@ export class L2Session {
   private readonly handlers: SessionHandlers;
 
   private game: GameClient | null = null;
+  /** objectIds the server has described to us and not yet deleted - drives `visibleObjects`. */
+  private readonly knownObjects = new Set<number>();
   private stopped = false;
 
   private current: SessionSnapshot = {
@@ -77,6 +88,7 @@ export class L2Session {
     gameTime: null,
     lastValidateAt: null,
     corrections: 0,
+    visibleObjects: 0,
   };
 
   public constructor(cfg: NetConfig, handlers: SessionHandlers = {}) {
@@ -114,6 +126,7 @@ export class L2Session {
 
   public restart(): void {
     this.stop();
+    this.knownObjects.clear();
     this.patch({
       phase: "IDLE",
       detail: "",
@@ -123,6 +136,7 @@ export class L2Session {
       lastPongAt: null,
       lastValidateAt: null,
       corrections: 0,
+      visibleObjects: 0,
     });
     this.start();
   }
@@ -139,6 +153,62 @@ export class L2Session {
 
     this.patch({ coords: { x, y, z }, coordSource: source, tile: coordToTile(x, y).id });
     this.handlers.onPlace?.(x, y, z, source);
+  }
+
+  /**
+   * Splits the IN_GAME broadcast stream in two. Anything about our own objectId keeps taking the
+   * player-only paths it always has (`onCorrection`, and the `corrections` counter the HUD
+   * shows); everything else is the world and goes to `onWorldEvent`.
+   *
+   * Our own `move` broadcast is intentionally dropped rather than forwarded as a correction - we
+   * issued that move ourselves and the pawn is already walking it; echoing it back would fight
+   * the local movement component. That matches the old behaviour, where `onServerMove` had no
+   * subscriber.
+   */
+  private routeWorldEvent(event: WorldEvent): void {
+    const objectId = worldEventObjectId(event);
+
+    if (objectId !== this.current.objectId) {
+      if (event.kind === "npcInfo" || event.kind === "charInfo") {
+        this.knownObjects.add(objectId);
+        this.patch({ visibleObjects: this.knownObjects.size });
+      } else if (event.kind === "delete" && this.knownObjects.delete(objectId)) {
+        this.patch({ visibleObjects: this.knownObjects.size });
+      }
+
+      this.handlers.onWorldEvent?.(event);
+
+      return;
+    }
+
+    switch (event.kind) {
+      case "validate":
+        this.patch({ corrections: this.current.corrections + 1 });
+        this.handlers.onCorrection?.(event.location, "validateLocation");
+        break;
+      case "stop":
+        this.patch({ corrections: this.current.corrections + 1 });
+        this.handlers.onCorrection?.(event.location, "stopMove");
+        break;
+      case "teleport":
+        /* A teleport of our own character is a hard reposition, not a drift correction - the
+           server expects us to be there immediately. Reuse the correction path (it snaps the
+           pawn) but do not count it as a correction. */
+        this.handlers.onCorrection?.(
+          {
+            objectId,
+            x: event.teleport.x,
+            y: event.teleport.y,
+            z: event.teleport.z,
+            heading: event.teleport.heading,
+          },
+          "validateLocation",
+        );
+        break;
+      default:
+        /* Our own die/revive/status/attack: nothing consumes them yet. */
+        break;
+    }
   }
 
   private async run(): Promise<void> {
@@ -179,14 +249,7 @@ export class L2Session {
           onDisconnect: (reason) => {
             if (!this.stopped) this.patch({ phase: "DISCONNECTED", detail: reason });
           },
-          onValidateLocation: (loc) => {
-            this.patch({ corrections: this.current.corrections + 1 });
-            this.handlers.onCorrection?.(loc, "validateLocation");
-          },
-          onStopMove: (loc) => {
-            this.patch({ corrections: this.current.corrections + 1 });
-            this.handlers.onCorrection?.(loc, "stopMove");
-          },
+          onWorldEvent: (event) => this.routeWorldEvent(event),
         },
       );
 

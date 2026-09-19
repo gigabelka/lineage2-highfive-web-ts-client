@@ -70,4 +70,96 @@ export function parseServerMoveToLocation(body: Uint8Array): ServerMoveToLocatio
   return { objectId, dstX, dstY, dstZ, x, y, z };
 }
 
-export default { parseStopMove, parseValidateLocation, parseServerMoveToLocation };
+export interface ServerMoveToPawn {
+  objectId: number;
+  targetId: number;
+  /** How close the mover intends to get - an attack range or a follow offset. */
+  distance: number;
+  x: number;
+  y: number;
+  z: number;
+  targetX: number;
+  targetY: number;
+  targetZ: number;
+}
+
+/**
+ * MoveToPawn (0x72) - gameserver/network/serverpackets/MoveToPawn.java writeImpl:
+ * objectId, targetId, distance, mover x/y/z, target x/y/z. Creature.broadcastMoveToLocation
+ * picks this over 0x2F for an NPC whose intention is ATTACK or FOLLOW and which is not walking
+ * a geodata path, so most aggro chases arrive here rather than as MoveToLocation.
+ */
+export function parseMoveToPawn(body: Uint8Array): ServerMoveToPawn {
+  const r = new PacketReader(body);
+
+  r.skip(1); // opcode 0x72
+
+  const objectId = r.readInt32LE();
+  const targetId = r.readInt32LE();
+  const distance = r.readInt32LE();
+  const x = r.readInt32LE();
+  const y = r.readInt32LE();
+  const z = r.readInt32LE();
+  const targetX = r.readInt32LE();
+  const targetY = r.readInt32LE();
+  const targetZ = r.readInt32LE();
+
+  return { objectId, targetId, distance, x, y, z, targetX, targetY, targetZ };
+}
+
+export interface MoveTypeChange {
+  objectId: number;
+  isRunning: boolean;
+}
+
+/** ChangeMoveType (0x28): objectId, 0 = walk / 1 = run, then an unused C2-era int. */
+export function parseChangeMoveType(body: Uint8Array): MoveTypeChange {
+  const r = new PacketReader(body);
+
+  r.skip(1); // opcode 0x28
+
+  const objectId = r.readInt32LE();
+  const isRunning = r.readInt32LE() !== 0;
+
+  return { objectId, isRunning };
+}
+
+/** ChangeWaitType's `_moveType`, from gameserver/network/serverpackets/ChangeWaitType.java. */
+export const WAIT_TYPE = {
+  SITTING: 0,
+  STANDING: 1,
+  START_FAKEDEATH: 2,
+  STOP_FAKEDEATH: 3,
+} as const;
+
+export interface WaitTypeChange {
+  objectId: number;
+  waitType: number;
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** ChangeWaitType (0x29): objectId, moveType, x, y, z. */
+export function parseChangeWaitType(body: Uint8Array): WaitTypeChange {
+  const r = new PacketReader(body);
+
+  r.skip(1); // opcode 0x29
+
+  const objectId = r.readInt32LE();
+  const waitType = r.readInt32LE();
+  const x = r.readInt32LE();
+  const y = r.readInt32LE();
+  const z = r.readInt32LE();
+
+  return { objectId, waitType, x, y, z };
+}
+
+export default {
+  parseStopMove,
+  parseValidateLocation,
+  parseServerMoveToLocation,
+  parseMoveToPawn,
+  parseChangeMoveType,
+  parseChangeWaitType,
+};

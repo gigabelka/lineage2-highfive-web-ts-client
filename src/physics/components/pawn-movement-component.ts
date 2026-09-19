@@ -150,6 +150,11 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
   protected readonly velocity = new Vector3();
   protected readonly acceleration = new Vector3();
   protected readonly floor = new Vector3(0, 0, 1);
+  /* Per-actor ground speeds. They default to the player-derived constants so nothing that never
+     calls setGroundSpeed changes behaviour; a networked NPC overwrites them from NpcInfo's
+     runSpd/walkSpd, which vary wildly between a rabbit and a raid boss. */
+  protected groundSpeed = GROUND_SPEED;
+  protected walkSpeed = WALK_SPEED;
   protected collisionRadius = COLLISION_RADIUS;
   protected collisionHeight = COLLISION_HEIGHT;
   protected readonly analyticalCenter = new Vector3();
@@ -502,8 +507,8 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
         : this.physicsMode === "flying"
           ? this.airSpeed
           : this.isWalking
-            ? WALK_SPEED
-            : GROUND_SPEED;
+            ? this.walkSpeed
+            : this.groundSpeed;
 
     const willReachDestination =
       this.actorState.locomotion &&
@@ -676,7 +681,7 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
       position,
       tmpAccelDir,
       deltaTime,
-      this.isWalking ? WALK_SPEED : GROUND_SPEED,
+      this.isWalking ? this.walkSpeed : this.groundSpeed,
     );
     tmpDesiredMove.copy(this.velocity);
     tmpDesiredMove.z = 0;
@@ -1689,6 +1694,16 @@ export class PawnMovementComponent extends PhysicsComponent<BaseActor> {
     }
   }
 
+  /**
+   * Per-actor ground speeds, in the same unit as the GROUND_SPEED/WALK_SPEED defaults (which is
+   * also the unit NpcInfo/CharInfo send runSpd/walkSpd in). A non-positive value keeps the
+   * current one, so a ServerObjectInfo NPC - which reports speed 0 because it never moves -
+   * cannot accidentally freeze an actor that does.
+   */
+  public setGroundSpeed(runSpeed: number, walkSpeed: number) {
+    if (runSpeed > 0) this.groundSpeed = runSpeed;
+    if (walkSpeed > 0) this.walkSpeed = walkSpeed;
+  }
   public setAirSpeed(airSpeed: number) {
     if (!Number.isFinite(airSpeed) || airSpeed < 0)
       throw new Error(`Invalid pawn AirSpeed '${airSpeed}'.`);

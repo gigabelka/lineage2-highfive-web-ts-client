@@ -155,6 +155,15 @@ class AssetManager {
   }
 
   /**
+   * Whether the streamer has sampled the camera at least once, i.e. `tick` is actually running.
+   * Public and deliberately network-agnostic: nothing about the network layer's own timeouts
+   * belongs in here, this is only "has a frame of streaming happened yet".
+   */
+  public hasStreamedOnce(): boolean {
+    return this.lastCameraSampleTime > 0;
+  }
+
+  /**
    * Nothing left in the pipeline: no decode is in flight and no sector is still waiting for its
    * time-sliced static-mesh build, i.e. everything the streamer wanted around the camera has made
    * it all the way to `attachStaticMeshGroup` (which is what registers the mesh colliders).
@@ -497,6 +506,7 @@ class AssetManager {
     renderManager: RenderManager,
     selector: string | number,
     position: Vector3 = null,
+    playEnterEvent: boolean = true,
   ): Promise<BaseActor> {
     const npc = await this.resolveNpc(selector);
     const dot = npc.mesh.indexOf(".");
@@ -547,46 +557,63 @@ class AssetManager {
       );
     }
 
-    if (!position) {
-      tmpNpcFloorStart.copy(actor.position);
-      tmpNpcFloorStart.z += NPC_SPAWN_FLOOR_DISTANCE * 0.5;
-
-      const floor = renderManager.rayCheck(
-        tmpNpcFloorStart,
-        npcFloorDirection,
-        NPC_SPAWN_FLOOR_DISTANCE,
-        undefined,
-        undefined,
-        false,
+    /* Both spawn paths get the floor snap and the flying hold, not just the debug one.
+       A network spawn arrives at the server's Z, which is the geodata Z - the rendered floor is
+       the better-looking authority for it - while a debug spawn lands near whatever the camera
+       happens to look at, which is sometimes a floating vantage with no ground for a long way
+       down. Either way the ray can miss (map edge, unloaded sector, a gap in the streamed
+       geometry): keep the un-snapped position and warn rather than failing the whole spawn. */
+    if (!this.snapActorToFloor(renderManager, actor))
+      console.warn(
+        `[npc] '${npc.id}' (${npc.name}) has no floor below its ${position ? "server" : "spawn"} position - leaving it unsnapped.`,
       );
 
-      /* A debug spawn should still put something on screen even where the streamed geometry has a
-         gap (map edge, unloaded sector) - warn and keep the un-snapped position instead of
-         failing the whole spawn. */
-      if (!floor)
-        console.warn(
-          `[npc] '${npc.id}' (${npc.name}) has no floor below its spawn position - leaving it unsnapped.`,
-        );
-      else actor.position.copy(floor.location);
-
-      /* Debug spawns land near whatever the camera happens to be looking at, which is sometimes a
-         floating debug vantage with no ground for a long way down (see the player's own spawn
-         fix in RenderManager) - once the sector's collision streams in, gravity would otherwise
-         carry the NPC out of frame while nobody asked it to go anywhere. setFlying(true) holds it
-         where it visibly landed; AI movement (Follow Player, Attack) still works while flying. */
-      actor.setFlying(true);
-    }
+    /* A server-driven pawn has no use for gravity at all: its positions come from
+       move/stop/validate/teleport in `WorldEntityRegistry.applyToEntity`, so the only thing
+       gravity could do between packets is carry it out of frame. The same holds for a debug
+       spawn, which nobody asked to go anywhere. `goTo` works while flying, so pathing is
+       unaffected. */
+    actor.setFlying(true);
 
     try {
       renderManager.addPawn(actor);
 
-      if (npc.enterEvent) actor.spawnEnterEvent(npc.enterEvent);
+      /* The enter event is the "creature rises out of the ground" intro, which only makes
+         sense for a creature that is genuinely spawning now. An NPC that merely walked into our
+         view range (WorldEntityRegistry) has been standing there all along, so it passes
+         `playEnterEvent: false` rather than replaying the intro on every region crossing. */
+      if (playEnterEvent && npc.enterEvent) actor.spawnEnterEvent(npc.enterEvent);
     } catch (e) {
       renderManager.removePawn(actor);
       throw e;
     }
 
     return actor;
+  }
+
+  /**
+   * Drops `actor` onto the first collidable surface below it, as a downward ray from half a
+   * spawn-distance above its current position. Returns whether a floor was found; on a miss the
+   * actor keeps the position it came in with (see the caller's warning).
+   */
+  protected snapActorToFloor(renderManager: RenderManager, actor: BaseActor): boolean {
+    tmpNpcFloorStart.copy(actor.position);
+    tmpNpcFloorStart.z += NPC_SPAWN_FLOOR_DISTANCE * 0.5;
+
+    const floor = renderManager.rayCheck(
+      tmpNpcFloorStart,
+      npcFloorDirection,
+      NPC_SPAWN_FLOOR_DISTANCE,
+      undefined,
+      undefined,
+      false,
+    );
+
+    if (!floor) return false;
+
+    actor.position.copy(floor.location);
+
+    return true;
   }
 
   /**

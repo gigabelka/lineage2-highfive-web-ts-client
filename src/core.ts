@@ -73,7 +73,7 @@ async function startCore() {
   let connected: Promise<void> = Promise.resolve();
 
   if (netConfig.enabled) {
-    const net = attachNetSession(renderManager, netConfig);
+    const net = attachNetSession(renderManager, netConfig, assetManager);
     (global as any).l2Session = net.session;
     connected = net.connected;
   }
@@ -82,6 +82,16 @@ async function startCore() {
 
   await connected;
   await assetManager.initialize(renderManager);
+
+  /* Streaming starts before the debug panels are built, not after: `startRendering()` is written
+     to be called while sectors are still on their way in (the player is added to the scene in the
+     constructor), whereas `addCharacterControls()` decodes a character body and `addNpcControls()`
+     resolves an NPC catalog on decode worker 0 - the same worker the networked world's own mesh
+     loads queue behind. Sitting on the critical path, they delayed the first sector request by the
+     time it takes to decode them. */
+  renderManager.scene.add(objectGroup);
+  renderManager.scene.add(new BoxHelper(objectGroup));
+  renderManager.startRendering();
 
   renderManager.addClippingRangeControls();
   renderManager.addDisplayGammaControls();
@@ -96,10 +106,6 @@ async function startCore() {
   console.info(
     `System has loaded in ${(performance.now() - startTime) / 1000}s!`,
   );
-
-  renderManager.scene.add(objectGroup);
-  renderManager.scene.add(new BoxHelper(objectGroup));
-  renderManager.startRendering();
 }
 
 export default startCore;

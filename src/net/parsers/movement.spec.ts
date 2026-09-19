@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import PacketWriter from "@client/net/binary/packet-writer";
-import { parseServerMoveToLocation, parseStopMove, parseValidateLocation } from "@client/net/parsers/movement";
+import {
+  WAIT_TYPE,
+  parseChangeMoveType,
+  parseChangeWaitType,
+  parseMoveToPawn,
+  parseServerMoveToLocation,
+  parseStopMove,
+  parseValidateLocation,
+} from "@client/net/parsers/movement";
 
 describe("parseStopMove / parseValidateLocation", () => {
   // Both are gameserver/network/serverpackets/{StopMove,ValidateLocation}.java writeImpl:
@@ -59,6 +67,68 @@ describe("parseServerMoveToLocation", () => {
       x: 10,
       y: 20,
       z: 30,
+    });
+  });
+});
+
+describe("parseMoveToPawn", () => {
+  // gameserver/network/serverpackets/MoveToPawn.java writeImpl: objectId, targetId, distance,
+  // mover x/y/z, target x/y/z. This is what an aggro chase arrives as, not 0x2F.
+  it("reads the mover and target blocks in order", () => {
+    const body = new PacketWriter(0x72)
+      .writeInt32LE(268476032)
+      .writeInt32LE(268476040)
+      .writeInt32LE(40)
+      .writeInt32LE(-84272)
+      .writeInt32LE(245391)
+      .writeInt32LE(-3730)
+      .writeInt32LE(-84300)
+      .writeInt32LE(245420)
+      .writeInt32LE(-3728)
+      .toBytes();
+
+    expect(parseMoveToPawn(body)).toEqual({
+      objectId: 268476032,
+      targetId: 268476040,
+      distance: 40,
+      x: -84272,
+      y: 245391,
+      z: -3730,
+      targetX: -84300,
+      targetY: 245420,
+      targetZ: -3728,
+    });
+  });
+
+  it("throws on a truncated body", () => {
+    expect(() => parseMoveToPawn(new Uint8Array([0x72, 1, 2, 3]))).toThrow(RangeError);
+  });
+});
+
+describe("parseChangeMoveType / parseChangeWaitType", () => {
+  it("reads the walk/run flag", () => {
+    const run = new PacketWriter(0x28).writeInt32LE(5).writeInt32LE(1).writeInt32LE(0).toBytes();
+    const walk = new PacketWriter(0x28).writeInt32LE(5).writeInt32LE(0).writeInt32LE(0).toBytes();
+
+    expect(parseChangeMoveType(run)).toEqual({ objectId: 5, isRunning: true });
+    expect(parseChangeMoveType(walk)).toEqual({ objectId: 5, isRunning: false });
+  });
+
+  it("reads the wait type and the position it applies at", () => {
+    const body = new PacketWriter(0x29)
+      .writeInt32LE(5)
+      .writeInt32LE(WAIT_TYPE.SITTING)
+      .writeInt32LE(1)
+      .writeInt32LE(2)
+      .writeInt32LE(3)
+      .toBytes();
+
+    expect(parseChangeWaitType(body)).toEqual({
+      objectId: 5,
+      waitType: WAIT_TYPE.SITTING,
+      x: 1,
+      y: 2,
+      z: 3,
     });
   });
 });

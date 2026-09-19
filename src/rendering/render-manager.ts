@@ -409,9 +409,10 @@ class RenderManager implements IPhysicsHost {
   public readonly collisionWorld: CollisionWorld;
 
   /**
-   * Live pawns other than the player (NPCs land in Phase 5). A pawn lives under its containing
-   * `SectorObject.pawns` group when one is streamed in, so sector streaming owns its lifetime;
-   * otherwise (and always for the player) it is parented directly to `scene` - see `addPawn`.
+   * Every pawn handed to `addPawn` (the player goes its own way - it is created and parented in the
+   * constructor). They are parented directly to `scene` and their lifetime is owned by whoever
+   * spawned them; the map-placed pawns decoded from a level package are added to `sector.pawns` by
+   * `object3d-decoder` instead and never appear here.
    */
   public readonly pawns = new Set<BaseActor>();
 
@@ -1704,31 +1705,45 @@ class RenderManager implements IPhysicsHost {
   // --- pawns ------------------------------------------------------------------------------
 
   /**
-   * Parents the pawn under the containing sector's `pawns` group so unloading that sector takes
-   * its pawns with it. When the spawn point's sector has not streamed in yet (map edge, a debug
-   * spawn ahead of the camera before its sector loaded), falls back to `scene` directly - same as
-   * the player ([render-manager.ts] constructor) - rather than silently dropping the pawn: it used
-   * to `return` early here with no error, leaving a fully decoded, animated actor parented to
-   * nothing and never rendered. `updatePawnVisibility`'s frustum pass already handles any pawn
-   * outside a `SectorObject` ancestor, so no visibility changes were needed for this fallback.
+   * Adds a pawn to the world, parented to `scene` like the player.
+   *
+   * Deliberately NOT under the containing sector's `pawns` group (the donor project, whose
+   * `addPawn` this follows, parents to the scene too). A sector group is unloaded with its
+   * sector, and the owner of a live pawn's lifetime is its caller - `WorldEntityRegistry` on
+   * `DeleteObject`, the NPC debug panel on kill - so silently taking one out of the graph with
+   * the sector would desync that owner: it would keep the record `live` with no actor behind it,
+   * and holding a `MAX_LIVE_ENTITIES` slot forever. A spawned pawn whose sector has not streamed
+   * in yet is no longer a special case either; `pawn.updateMatrixWorld(true)` settles its world
+   * matrix before `PawnRenderableComponent`'s frustum bound is computed from it.
+   *
+   * The map-placed pawns decoded from a level package do not come through here - they are added
+   * to `sector.pawns` directly by `object3d-decoder` and stay BSP-leaf culled. Live pawns get
+   * their verdict from the frustum pass in `updatePawnVisibility`.
    */
   public addPawn(pawn: BaseActor): void {
     if (this.pawns.has(pawn)) return;
 
-    const sector = this.getSector(pawn.position);
-
-    if (sector) sector.pawns.add(pawn);
-    else this.scene.add(pawn);
+    this.scene.add(pawn);
+    pawn.updateMatrixWorld(true);
 
     this.pawns.add(pawn);
     this.registerObjectComponents(pawn);
+    this.needsUpdate = true;
   }
 
+  /**
+   * Takes a pawn out of the world for good. `release()` (component detach, mixer uncache,
+   * geometry dispose) is part of the contract because the only callers that ever existed were
+   * debug toys that ran once - a networked world deletes pawns continuously as they leave view
+   * range, and skipping it leaks components and GPU geometry on every DeleteObject.
+   */
   public removePawn(pawn: BaseActor): void {
     if (!this.pawns.delete(pawn)) return;
 
     this.unregisterObjectComponents(pawn);
     pawn.removeFromParent();
+    pawn.release();
+    this.needsUpdate = true;
   }
 
   public registerPawnRenderable(component: PawnRenderableComponent): void { this.pawnRenderables.add(component); }
@@ -2144,12 +2159,12 @@ class RenderManager implements IPhysicsHost {
   }
 
   /**
-   * Two verdicts, combined. The BSP-leaf pass below is unchanged and still owns every pawn under a
-   * sector's `pawns` group (the map-placed static pawn actors decoded by `decodePackage`, plus live
-   * NPCs once Phase 5 spawns them). On top of it, the live pawns that registered a
-   * PawnRenderableComponent get a frustum test against their own mesh-derived bound - the player is
-   * the only such pawn today, and it is parented to `scene`, so the leaf pass never reaches it and
-   * the frustum verdict is all it gets. A pawn that both passes see has to satisfy both.
+   * Two verdicts, combined. The BSP-leaf pass below is unchanged and owns every pawn under a
+   * sector's `pawns` group - the map-placed static pawn actors decoded by `decodePackage`, which
+   * are the only ones `addPawn` does not touch. On top of it, the live pawns that registered a
+   * PawnRenderableComponent get a frustum test against their own mesh-derived bound; they are
+   * parented to `scene` (player and every `addPawn`ed actor), so the leaf pass never reaches them
+   * and the frustum verdict is all they get. A pawn both passes see has to satisfy both.
    */
   protected updatePawnVisibility(): void {
     this.frustumCulledPawns.clear();

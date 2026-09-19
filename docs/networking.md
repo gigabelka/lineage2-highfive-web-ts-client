@@ -151,7 +151,8 @@ Details worth knowing before touching this file:
 - Server extended packets (`0xFE` + 2-byte LE sub-opcode) and the torrent of unknown packets
   between `CharSelected` and `UserInfo` (skills/items/quest state) are counted and dropped, not
   treated as errors — only the first 20 log at `debug` level to avoid flooding the console.
-- Once `IN_GAME`, every packet except `NetPing` is dropped.
+- Once `IN_GAME`, dispatch moves to [world-dispatch.ts](../src/net/world-dispatch.ts) - see
+  "World objects" below. `NetPing` is still handled here, state-independently.
 - **Keepalive is reversed on this server** vs. the generic doc: the **client** sends
   `RequestNetPing` (`0xB1`, empty body, accepted only in `IN_GAME`) every `L2_PING_MS`; the
   server answers `NetPing` (`0xD9` + `int gameTime`). There is no server-initiated ping here.
@@ -165,6 +166,106 @@ slot, level, x/y/z; header carries two more fields than `server-protocol.md` lis
 [user-info.ts](../src/net/parsers/user-info.ts) (`UserInfoBrief` — x,y,z sit right after the
 opcode, before name/objectId, unlike the doc's field order). Covered by
 [parsers.spec.ts](../src/net/parsers/parsers.spec.ts).
+
+## World objects — NPCs, mobs and other players
+
+Everything in view range is broadcast to us, keyed by `objectId`. Until this landed, the three
+movement broadcasts were filtered down to our own `objectId` and every other packet was dropped.
+
+### Wire formats
+
+All transcribed from the Java in `c:\MyProjects\l2J-Mobius-CT-2.6-HighFive\gameserver/network/serverpackets/`.
+Opcodes live in `ServerPackets.java`; `writeId()` writes one byte, or `0xFE` plus a uint16 LE
+sub-opcode for Ex packets. `writeByte/Short/Int/Long/Double/String` map to
+`C/H/D/Q/F64/UTF16+0x0000`, all little-endian.
+
+| packet | opcode | parser |
+| --- | --- | --- |
+| `AbstractNpcInfo.{NpcInfo,SummonInfo,TrapInfo}` | `0x0C` | [npc-info.ts](../src/net/parsers/npc-info.ts) |
+| `ServerObjectInfo` | `0x92` | same file |
+| `CharInfo` | `0x31` | [char-info.ts](../src/net/parsers/char-info.ts) |
+| `DeleteObject` / `Die` / `Revive` / `TeleportToLocation` | `0x08` / `0x00` / `0x01` / `0x22` | [object-lifecycle.ts](../src/net/parsers/object-lifecycle.ts) |
+| `MoveToPawn` / `ChangeMoveType` / `ChangeWaitType` | `0x72` / `0x28` / `0x29` | [movement.ts](../src/net/parsers/movement.ts) |
+| `Attack` / `StatusUpdate` / `SocialAction` / `MagicSkillUse` / `AutoAttackStart`/`Stop` | `0x33` / `0x18` / `0x27` / `0x48` / `0x25`/`0x26` | [combat.ts](../src/net/parsers/combat.ts) |
+
+Three corrections against `server-protocol.md` were added on top of the original four (the full
+text is in the header of [opcodes.ts](../src/net/opcodes.ts)):
+
+5. **There is no `NpcInfo.java`.** `NpcInfo`, `SummonInfo` and `TrapInfo` are static inner
+   classes of `AbstractNpcInfo.java` and **all three share `0x0C`**. They agree field-for-field
+   up to the five status bytes and diverge after the title; `SummonInfo`/`TrapInfo` are one
+   `int` shorter at the tail. The parser reads only the common prefix, so one function covers
+   all three. `NpcInfo.writeImpl` also **returns before writing anything** when the npc is
+   decayed, so an empty body (opcode only) is normal and parses to `null`.
+6. **Immobile NPCs never come through `0x0C`.** `Npc.sendInfo` (`model/actor/Npc.java`) picks
+   `ServerObjectInfo` (`0x92`) whenever `getRunSpeed() == 0`. Without it most town NPCs simply
+   never appear. Shorter, differently-ordered layout — the name comes third, there is no
+   speed/status block.
+7. **`CharInfo` and `UserInfo` paperdolls do not match.** `CharInfo` overrides
+   `getPaperdollOrder()` with its own **21**-slot array and walks it **twice** (display id,
+   augmentation id); `UserInfo` uses the default **26**-slot array and walks it **three** times
+   (object id, display id, augmentation id). Do not share that code.
+
+Two more things that bite:
+
+- **NPC type ids are `displayId + 1000000`** in all three `0x0C` variants and in
+  `ServerObjectInfo`, while `Npcgrp.dat` is keyed by the raw id (`row.tag`). Subtract
+  `NPC_TYPE_ID_OFFSET` before resolving a mesh. Mounts in `CharInfo`/`UserInfo` use the same
+  convention.
+- **`CharInfo` cannot be read lazily.** `heading` sits near the very end, past a variable-length
+  cubic list, so the parser walks the whole packet. A single wrong skip silently rotates every
+  player in view rather than throwing.
+
+`AbnormalStatusUpdate` (`0x85`) deliberately has **no** parser: it carries no `objectId`, and its
+count is `_effects.size()` while the write loop skips entries that are not `isInUse()`, so the
+declared count can exceed what was written and a full read would desync.
+
+### Flow
+
+`EnterWorld` (client `0x11`, already sent during the handshake) is the trigger —
+`EnterWorld.java` calls `player.spawnMe()`, which puts us in `World` and starts the `sendInfo`
+avalanche in both directions (`World.addVisibleObject`). Nothing extra has to be sent.
+`AbstractAI.describeStateToPlayer` follows an info packet with `MoveToPawn`/`MoveToLocation`
+when the actor is already moving, so a freshly-seen mob arrives pre-animated. Region crossings
+re-send info for the new neighbourhood and `DeleteObject` for what left it.
+
+### `world-dispatch.ts` / `world-events.ts`
+
+`dispatchWorldPacket(body)` is a pure `switch` on the opcode returning a `WorldEvent`
+discriminated union (or `null` for an opcode we do not handle). It deliberately does **not**
+filter on our own `objectId` — `L2Session.routeWorldEvent` does that, because it is the half
+that knows which id is ours: our own `validate`/`stop`/`teleport` keep taking the existing
+`onCorrection` path, everything else goes to `onWorldEvent`. Our own `move` broadcast is dropped
+rather than echoed back at the movement component that issued it.
+
+### `src/game/world-entity-registry.ts`
+
+The `objectId -> BaseActor` map, which nothing else in the project has. It also owns:
+
+- **A bounded spawn queue.** `decodeSkeletalMesh`/`decodeCharacter`/`resolveNpc` are all pinned
+  to decode worker 0 (`DecodeWorkerClient.characterWorkerIndex`, because package refcounts are
+  per-worker), which sector streaming also depends on. `SPAWN_CONCURRENCY` (2) caps in-flight
+  loads, `MAX_LIVE_ENTITIES` (60) caps actors with a mesh, and the queue is drained
+  nearest-to-the-player first.
+- **A record per described object, mesh or no mesh.** Positions and states are tracked from the
+  first packet, so an actor that spawns late still appears where the server last put it, and one
+  held back by the entity cap is still followed.
+- **A sector gate.** A queued entity whose sector has not streamed in is skipped and retried on
+  the `DRAIN_INTERVAL_MS` timer — spawning into unstreamed space means no collision underneath
+  and an actor that falls out of the world.
+- **Abort on an in-flight `DeleteObject`.** A decode cannot be cancelled, so the record is
+  marked `aborted` and the finished actor is thrown away instead of being added to the scene.
+- **`CharInfo` to `chargrp.dat`.** Resolved by group *name* (`MFighter`, `FFighter`, `MMagic`,
+  `MShaman`, …) looked up in `getCharGroups()`, never by a hardcoded row number — that order is
+  not part of any protocol. Race ordinal plus the `isMage` base classes (10/25/38/49 in
+  `PlayerClass.java`) pick the body; paperdoll display ids for CHEST/LEGS/GLOVES/FEET become the
+  armour selection, with anything the group does not offer degrading to the naked body part.
+- **Tolerant animation.** `AnimationComponent.setBasicAnimation` throws on a missing clip, so
+  every combat/social/sit animation goes through a prefix search over `getAnimationNames()` and
+  is skipped when the mesh has no matching clip.
+
+The registry stays disabled until the player's own flying hold is released, for the same reason
+the hold exists: before that there is no collision to stand on.
 
 ## `session.ts` — orchestration
 
@@ -230,7 +331,7 @@ the last click) before sending, purely to avoid a doomed packet.
 
 ## `src/game/net-world-bridge.ts` — the only file that imports both sides
 
-`attachNetSession(renderManager, cfg)` is the single seam between `src/net/**` (three.js-free)
+`attachNetSession(renderManager, cfg, assetManager)` is the single seam between `src/net/**` (three.js-free)
 and `RenderManager` (network-free — it only gained two generic public methods,
 `placePlayerAt(Vector3)` and `releasePlayerHold()`). It owns:
 
@@ -242,6 +343,10 @@ and `RenderManager` (network-free — it only gained two generic public methods,
   `releasePlayerHold()` hands control to gravity. If the tile isn't in the local asset install
   at all, or doesn't stream in within `HOLD_TIMEOUT_MS` (20 s), the player is left flying rather
   than sinking through missing collision. Poll interval `HOLD_POLL_MS` = 250 ms.
+- **The world registry**: constructs
+  [world-entity-registry.ts](../src/game/world-entity-registry.ts), feeds it `onWorldEvent`,
+  enables it once the hold is released, and clears it on FAILED/DISCONNECTED and on the
+  Reconnect button.
 - **The HUD**: creates and repaints [net-hud.ts](../src/net/net-hud.ts)'s connection-status
   overlay from every `SessionSnapshot`.
 

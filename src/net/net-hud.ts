@@ -25,6 +25,13 @@ export interface HudExtra {
   tileLoaded?: boolean;
   /** "held" while flying above not-yet-streamed collision, "released" once gravity is live. */
   hold?: "held" | "released" | "no-collision";
+  /** WorldEntityRegistry.getCounts() - how populated the world around us actually is. */
+  world?: { live: number; pending: number; known: number };
+  /**
+   * Whether the world gate has opened: the registry spawns nothing while it is "waiting", so a
+   * `pending` of 0 next to "waiting" means the gate, not the queue.
+   */
+  worldGate?: "waiting" | "enabled";
 }
 
 function ago(timestamp: number | null): string {
@@ -81,6 +88,14 @@ export function createNetHud(onReconnect: () => void): NetHud {
     if (snapshot.phase === "IN_GAME") {
       lines.push(`ping ${ago(snapshot.lastPongAt)}${snapshot.gameTime !== null ? `  gameTime ${snapshot.gameTime}` : ""}`);
       lines.push(`move validate ${ago(snapshot.lastValidateAt)}  corrections ${snapshot.corrections}`);
+
+      const world = extra.world;
+
+      lines.push(
+        `world ${snapshot.visibleObjects} visible` +
+          (world ? `  ${world.live} live  ${world.pending} pending` : "") +
+          (extra.worldGate ? `  gate ${extra.worldGate}` : ""),
+      );
     }
 
     body.textContent = lines.join("\n");

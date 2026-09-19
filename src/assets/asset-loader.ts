@@ -1,5 +1,10 @@
 import { AAssetLoader, APackage } from "@l2js/core";
 
+/* Content confirmed absent from this HighFive asset install (e.g. Sacred Umors weapon skin -
+   later-era item not shipped here); suppress the noisy warning for these specific known cases
+   while still logging any other unexpected missing dependency. */
+const KNOWN_MISSING_PACKAGES = new Set<string>(["Sacredumors_m00_wp"]);
+
 class AssetLoader extends AAssetLoader<
   C.APackage,
   GA.UCorePackage,
@@ -131,9 +136,11 @@ class AssetLoader extends AAssetLoader<
            project-local reimplementation of the same walk does too - otherwise one such entry
            anywhere in a mesh's import table takes the whole mesh down. */
         if (!this.hasPackage(ep.objectName, entry.className)) {
-          console.warn(
-            `AssetLoader: '${cur.path}' references missing package '${ep.objectName}' for type '${entry.className}' - skipping dependency.`,
-          );
+          if (!KNOWN_MISSING_PACKAGES.has(ep.objectName)) {
+            console.warn(
+              `AssetLoader: '${cur.path}' references missing package '${ep.objectName}' for type '${entry.className}' - skipping dependency.`,
+            );
+          }
           continue;
         }
 

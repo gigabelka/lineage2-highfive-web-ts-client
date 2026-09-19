@@ -19,13 +19,8 @@ import { hex } from "@client/net/binary/bytes";
 import { parseCharSelected, type CharSelectedBrief } from "@client/net/parsers/char-selected";
 import { parseCharSelectionInfo, type CharacterInfo } from "@client/net/parsers/char-selection-info";
 import { parseUserInfo, type UserInfoBrief } from "@client/net/parsers/user-info";
-import {
-  parseServerMoveToLocation,
-  parseStopMove,
-  parseValidateLocation,
-  type HeadedLocation,
-  type ServerMoveToLocation,
-} from "@client/net/parsers/movement";
+import type { WorldEvent } from "@client/net/world-events";
+import { dispatchWorldPacket } from "@client/net/world-dispatch";
 import { buildMoveToLocation, buildValidatePosition, type Vec3I } from "@client/net/packets/movement";
 
 export type GameState =
@@ -55,12 +50,13 @@ export interface GameClientEvents {
   onUserInfo?(info: UserInfoBrief): void;
   onPong?(gameTime: number): void;
   onDisconnect?(reason: string): void;
-  /** Server-initiated position correction, filtered to our own objectId. */
-  onValidateLocation?(loc: HeadedLocation): void;
-  /** Server telling us (or another actor) to stop moving, filtered to our own objectId. */
-  onStopMove?(loc: HeadedLocation): void;
-  /** Broadcast of a move order, filtered to our own objectId - rarely needed since we issued it. */
-  onServerMove?(move: ServerMoveToLocation): void;
+  /**
+   * Every IN_GAME broadcast about any actor in view range, ours included. Splitting "us" from
+   * "the world" happens in `L2Session.routeWorldEvent`, which is the half that knows which
+   * objectId is ours: it keeps feeding our own position corrections to its `onCorrection`
+   * handler and forwards everything else to the world registry.
+   */
+  onWorldEvent?(event: WorldEvent): void;
 }
 
 function tracing(): boolean {
@@ -241,26 +237,29 @@ export class GameClient {
 
           break;
 
-        case "IN_GAME":
-          // Movement broadcasts cover every actor in view range - filter to our own objectId.
-          // Everything else is still dropped. A malformed broadcast is logged, not fatal - it is
-          // not worth losing the whole session over (same policy as handleCharSelected below).
+        case "IN_GAME": {
+          // Everything in view range is broadcast here - us, other players, NPCs and mobs alike.
+          // We deliberately do NOT filter to our own objectId any more: `L2Session` splits the
+          // stream into "us" (the existing onValidateLocation/onStopMove/onServerMove paths) and
+          // "the world" (onWorldEvent), because it is the half that owns that distinction.
+          // A malformed broadcast is logged, not fatal - it is not worth losing the whole
+          // session over (same policy as handleCharSelected below).
+          let event: WorldEvent | null = null;
+
           try {
-            if (opcode === OPCODES.game.in.ValidateLocation) {
-              const loc = parseValidateLocation(body);
-              if (loc.objectId === this.objectId) this.events.onValidateLocation?.(loc);
-            } else if (opcode === OPCODES.game.in.StopMove) {
-              const loc = parseStopMove(body);
-              if (loc.objectId === this.objectId) this.events.onStopMove?.(loc);
-            } else if (opcode === OPCODES.game.in.MoveToLocation) {
-              const move = parseServerMoveToLocation(body);
-              if (move.objectId === this.objectId) this.events.onServerMove?.(move);
-            }
+            event = dispatchWorldPacket(body);
           } catch (e) {
-            console.warn(`[game] movement broadcast 0x${opcode.toString(16)} parse failed: ${(e as Error).message}`);
+            console.warn(`[game] world packet 0x${opcode.toString(16)} parse failed: ${(e as Error).message}`);
+
+            return;
           }
 
+          if (event === null) break;
+
+          this.events.onWorldEvent?.(event);
+
           return;
+        }
 
         default:
           return;

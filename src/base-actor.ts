@@ -222,6 +222,7 @@ export class BaseActor extends GameObject implements ICollidable {
     public isUnderwaterMovement(): boolean { return this.movementComponent.isUnderwaterMovement(); }
     public setFlying(isFlying: boolean): void { this.movementComponent.setFlying(isFlying); }
     public setAirSpeed(airSpeed: number): void { this.movementComponent.setAirSpeed(airSpeed); }
+    public setGroundSpeed(runSpeed: number, walkSpeed: number): void { this.movementComponent.setGroundSpeed(runSpeed, walkSpeed); }
     public setCollisionSize(collisionRadius: number, collisionHeight: number): void { this.movementComponent.setCollisionSize(collisionRadius, collisionHeight); }
     public teleportTo(position: Vector3): void { this.movementComponent.teleportTo(position); }
     public getRotationYaw(): number { return this.movementComponent.getRotationYaw(); }

@@ -16,6 +16,22 @@
  *    parsers/char-selection-info.ts.
  * 3. CryptInit/KeyPacket (0x2E) has a longer body than the doc lists - see game-client.ts.
  * 4. UserInfo (0x32) puts x,y,z first, right after the opcode - see parsers/user-info.ts.
+ * 5. There is no NpcInfo.java and no NpcInfoPoly in this build. NpcInfo, SummonInfo and TrapInfo
+ *    are three static inner classes of gameserver/network/serverpackets/AbstractNpcInfo.java and
+ *    ALL THREE share opcode 0x0C. They agree field-for-field up to the five status bytes and then
+ *    diverge; SummonInfo/TrapInfo are one int shorter than NpcInfo at the tail. We read only the
+ *    common prefix, so one parser covers all three - see parsers/npc-info.ts.
+ *    NpcInfo also writes an EMPTY BODY (opcode only) when the npc is decayed - the parser must
+ *    survive that rather than throw.
+ * 6. Immobile NPCs never come through 0x0C at all. Npc.sendInfo (gameserver/model/actor/Npc.java)
+ *    picks ServerObjectInfo (0x92) whenever getRunSpeed() == 0, so without it most town NPCs
+ *    simply never appear. Different, much shorter layout - see parsers/npc-info.ts.
+ * 7. CharInfo (0x31) overrides getPaperdollOrder() with its own 21-slot array and walks it TWICE
+ *    (display id, then augmentation id). UserInfo (0x32) uses the default 26-slot array and walks
+ *    it THREE times (object id, display id, augmentation id). Do not share the paperdoll code.
+ *
+ * NPC type ids on the wire are `displayId + 1000000` (AbstractNpcInfo/ServerObjectInfo), while
+ * Npcgrp.dat is keyed by the raw id - subtract 1000000 before resolving a mesh.
  *
  * Movement (see docs/networking.md, "Outgoing movement"). The client packet the doc calls
  * MoveBackwardToLocation is simply `MoveToLocation` in this server tree, and the server has a
@@ -57,6 +73,25 @@ export const OPCODES = {
       MoveToLocation: 0x2f, // broadcast: objectId, dstX, dstY, dstZ, x, y, z
       StopMove: 0x47, // broadcast: objectId, x, y, z, heading
       ValidateLocation: 0x79, // broadcast: objectId, x, y, z, heading
+
+      /* World objects. Every one of these is a broadcast keyed by objectId - the actor may be
+         us, another player, an NPC or a mob. See src/net/world-dispatch.ts. */
+      Die: 0x00, // objectId, canTeleport, then 6 flag ints
+      Revive: 0x01, // objectId
+      DeleteObject: 0x08, // objectId, 0
+      NpcInfo: 0x0c, // CORRECTION 5 below
+      StatusUpdate: 0x18, // objectId, count, count x (attributeId, value)
+      TeleportToLocation: 0x22, // objectId, x, y, z, fade(0)/instant(1), heading
+      AutoAttackStart: 0x25, // targetObjectId
+      AutoAttackStop: 0x26, // targetObjectId
+      SocialAction: 0x27, // objectId, actionId
+      ChangeMoveType: 0x28, // objectId, 0 = walk / 1 = run, 0
+      ChangeWaitType: 0x29, // objectId, moveType, x, y, z
+      CharInfo: 0x31, // other players - CORRECTION 7 below
+      Attack: 0x33, // attackerId, hit0, attackerX/Y/Z, count-1, hits..., targetX/Y/Z
+      MagicSkillUse: 0x48, // casterId, targetId, skillId, skillLevel, hitTime, ...
+      MoveToPawn: 0x72, // objectId, targetId, distance, x, y, z, tx, ty, tz
+      ServerObjectInfo: 0x92, // CORRECTION 6 below
     },
     out: {
       ProtocolVersion: 0x0e,
