@@ -81,7 +81,7 @@ async function handleMessage(msg: MainToWorkerMessage) {
         }
         case "decodeCharacter": {
             try {
-                const buffer = await engine.decodeCharacterBinary(msg.settings, msg.charIndex, msg.faceVariant, msg.hairVariant, msg.hairColour, msg.armor, msg.includeAnimations);
+                const buffer = await engine.decodeCharacterBinary(msg.settings, msg.charIndex, msg.faceVariant, msg.hairVariant, msg.hairColour, msg.equipment, msg.includeAnimations);
 
                 post({ type: "decoded", requestId: msg.requestId, buffer }, [buffer]);
             } catch (e) {

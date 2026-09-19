@@ -43,7 +43,9 @@ interface DecodeCharacterMessage {
     faceVariant: number;
     hairVariant: number;
     hairColour: number;
-    armor: GD.ICharacterArmorSelection;
+    /* always the full ten slots - the client side normalises before sending (see
+       `@client/assets/character-equipment`) */
+    equipment: GD.ICharacterEquipment;
     includeAnimations: boolean;
 }
 

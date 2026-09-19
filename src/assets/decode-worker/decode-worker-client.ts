@@ -1,4 +1,5 @@
 import DecodeLibrary from "@client/assets/unreal/decode-library";
+import { NO_EQUIPMENT, normalizeEquipment } from "@client/assets/character-equipment";
 import type { WorkerToMainMessage, PrecacheResult_T, ClientConfig_T } from "./decode-protocol";
 import type DecodeEngine from "./decode-engine";
 import { deserializeLibraryAsync } from "./library-serializer";
@@ -143,17 +144,19 @@ class DecodeWorkerClient {
         faceVariant: number = 0,
         hairVariant: number = 0,
         hairColour: number = 0,
-        armor: GD.ICharacterArmorSelection = { chest: 0, legs: 0, gloves: 0, boots: 0 },
+        equipment: Partial<GD.ICharacterEquipment> = NO_EQUIPMENT,
         includeAnimations: boolean = true,
     ): Promise<DecodeLibrary> {
+        const normalized = normalizeEquipment(equipment);
+
         if (this.mainThreadEngine)
-            return Object.setPrototypeOf(await this.mainThreadEngine.decodeCharacter(settings, charIndex, faceVariant, hairVariant, hairColour, armor, includeAnimations), DecodeLibrary.prototype) as DecodeLibrary;
+            return Object.setPrototypeOf(await this.mainThreadEngine.decodeCharacter(settings, charIndex, faceVariant, hairVariant, hairColour, normalized, includeAnimations), DecodeLibrary.prototype) as DecodeLibrary;
 
         const workerIndex = this.pickCharacterWorker();
 
         if (workerIndex < 0) throw new Error("Decode worker is dead");
 
-        return this.dispatch(workerIndex, { type: "decodeCharacter", settings, charIndex, faceVariant, hairVariant, hairColour, armor, includeAnimations });
+        return this.dispatch(workerIndex, { type: "decodeCharacter", settings, charIndex, faceVariant, hairVariant, hairColour, equipment: normalized, includeAnimations });
     }
 
     public async decodeSkeletalMesh(

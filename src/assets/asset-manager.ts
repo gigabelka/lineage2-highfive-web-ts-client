@@ -10,6 +10,7 @@ import {
 } from "@client/assets/decoders/object3d-decoder";
 import decodeEnv from "@client/assets/decoders/env-decoder";
 import DecodeWorkerClient from "@client/assets/decode-worker/decode-worker-client";
+import { NO_EQUIPMENT } from "@client/assets/character-equipment";
 import { getUserConfig } from "@unreal/conf-files/un-conf-system";
 import { AnimationClip, Matrix4, SkinnedMesh, Vector3 } from "three";
 import type { SectorObject } from "@client/objects/zone-object";
@@ -40,13 +41,9 @@ const SIMULATE_PAWN_SPREAD = 400;
 const tmpPrefetchPosition = new Vector3();
 const tmpCameraMovement = new Vector3();
 
-/** `decodeCharacter`'s own default: bare body, no armour pieces selected. */
-const DEFAULT_ARMOR_SELECTION: GD.ICharacterArmorSelection = {
-  chest: 0,
-  legs: 0,
-  gloves: 0,
-  boots: 0,
-};
+/** `loadCharacter`'s own default: bare body, nothing equipped. Shared and frozen - see
+ * `character-equipment.ts`. */
+const DEFAULT_EQUIPMENT: GD.ICharacterEquipment = NO_EQUIPMENT;
 
 type WarriorAnimations_T = {
   wait: string;
@@ -244,7 +241,7 @@ class AssetManager {
           0,
           0,
           0,
-          DEFAULT_ARMOR_SELECTION,
+          DEFAULT_EQUIPMENT,
         );
       } catch (e) {
         console.warn(
@@ -307,7 +304,7 @@ class AssetManager {
     faceVariant: number,
     hairVariant: number,
     hairColour: number,
-    armor: GD.ICharacterArmorSelection,
+    equipment: Partial<GD.ICharacterEquipment>,
   ): Promise<GD.DecodeLibrary> {
     const decode = requireWorkerMethod<(...args: any[]) => Promise<GD.DecodeLibrary>>(
       this.decodeWorker,
@@ -321,7 +318,7 @@ class AssetManager {
       faceVariant,
       hairVariant,
       hairColour,
-      armor,
+      equipment,
     );
   }
 
@@ -400,8 +397,12 @@ class AssetManager {
   }
 
   /**
-   * Rebuilds the player pawn's body from a character-class selection. Non-sector-scoped: unlike
-   * `requestSector`, nothing here is keyed by a level sector or owned by the streaming lifetime.
+   * Rebuilds the player pawn's body from a character-class selection plus whatever it has
+   * equipped. Non-sector-scoped: unlike `requestSector`, nothing here is keyed by a level sector
+   * or owned by the streaming lifetime.
+   *
+   * `equipment` takes a partial record so the older four-body-slot callers keep compiling; the
+   * worker fills the rest with "nothing equipped".
    */
   public async loadCharacter(
     renderManager: RenderManager,
@@ -409,7 +410,7 @@ class AssetManager {
     faceVariant: number,
     hairVariant: number,
     hairColour: number,
-    armor: GD.ICharacterArmorSelection,
+    equipment: Partial<GD.ICharacterEquipment>,
     actor?: BaseActor,
   ): Promise<void> {
     this.applyCharacter(
@@ -419,7 +420,7 @@ class AssetManager {
         faceVariant,
         hairVariant,
         hairColour,
-        armor,
+        equipment,
       ),
       actor,
       charIndex,

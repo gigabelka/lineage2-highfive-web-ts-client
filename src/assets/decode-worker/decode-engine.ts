@@ -1,4 +1,5 @@
 import AssetLoader from "@client/assets/asset-loader";
+import { NO_EQUIPMENT, normalizeEquipment, isEmptyEquipment } from "@client/assets/character-equipment";
 import UConfigEnv from "@unreal/conf-files/un-conf-env";
 import UConfigHair from "@unreal/conf-files/un-conf-hair";
 import UConfigWarrior, {
@@ -303,7 +304,7 @@ function resolveCharacterPartPaths(
   faceVariant: number,
   hairVariant: number,
   hairColour: number,
-  armor: GD.ICharacterArmorSelection,
+  equipment: GD.ICharacterEquipment,
 ): [string[], string[]] {
   const faceMesh = row.face_mesh[0] as string;
   const faceTexture = row.face_tex[
@@ -324,7 +325,7 @@ function resolveCharacterPartPaths(
   const bodyIndices: Record<string, number> = { u: 0, l: 1, g: 2, b: 3 };
 
   for (const slot of Object.keys(CHARACTER_ARMOR_SLOTS)) {
-    const id = armor[slot as keyof GD.ICharacterArmorSelection];
+    const id = equipment[slot as keyof typeof CHARACTER_ARMOR_SLOTS];
 
     if (!id) continue;
 
@@ -686,7 +687,7 @@ class DecodeEngine {
     faceVariant: number,
     hairVariant: number,
     hairColour: number,
-    armor: GD.ICharacterArmorSelection,
+    equipment: GD.ICharacterEquipment,
   ): Promise<[string[], string[]]> {
     const rows = await this.decodeCharGrp();
     const row = getCharacterRow(rows, charIndex);
@@ -700,7 +701,7 @@ class DecodeEngine {
       faceVariant,
       hairVariant,
       hairColour,
-      armor,
+      equipment,
     );
   }
 
@@ -914,7 +915,7 @@ class DecodeEngine {
             face,
             hair,
             colour,
-            { chest: 0, legs: 0, gloves: 0, boots: 0 },
+            NO_EQUIPMENT,
           );
 
           for (const path of meshes) meshPaths.add(path);
@@ -978,9 +979,12 @@ class DecodeEngine {
   }
 
   /**
-   * One full character: face + hair + body parts, plus armour when a slot is selected.
+   * One full character: face + hair + body parts, plus whatever equipment is selected.
    * `charIndex` indexes chargrp.dat, `*Variant`/`hairColour` are indices into that group's
-   * option lists (see decodeCharGroups), `armor` holds item ids per slot.
+   * option lists (see decodeCharGroups), `equipment` holds item ids per paperdoll slot.
+   *
+   * `equipment` is normalised first thing, so a partial record (the four body slots the Character
+   * panel used to send) still fills every remaining slot with "nothing equipped".
    */
   public async decodeCharacter(
     settings: GD.LoadSettings_T,
@@ -988,9 +992,11 @@ class DecodeEngine {
     faceVariant: number = 0,
     hairVariant: number = 0,
     hairColour: number = 0,
-    armor: GD.ICharacterArmorSelection = { chest: 0, legs: 0, gloves: 0, boots: 0 },
+    equipment: Partial<GD.ICharacterEquipment> = NO_EQUIPMENT,
     includeAnimations: boolean = true,
   ): Promise<DecodeLibrary> {
+    const normalizedEquipment = normalizeEquipment(equipment);
+
     await this.sweepCache(settings);
 
     const rows = await this.decodeCharGrp();
@@ -1000,7 +1006,7 @@ class DecodeEngine {
       faceVariant,
       hairVariant,
       hairColour,
-      armor,
+      normalizedEquipment,
     );
     const cached = this.cacheCharacterBundles.get(charIndex);
     const cacheName = characterBundleCacheName(
@@ -1008,8 +1014,8 @@ class DecodeEngine {
       splitObjectPath(row.face_mesh[0])[1].replace(/_m\d+_f$/, ""),
     );
 
-    /* armour swaps parts the bundle does not carry, so it is always assembled from source */
-    if (Object.values(armor).some((id) => id !== 0))
+    /* equipment swaps parts the bundle does not carry, so it is always assembled from source */
+    if (!isEmptyEquipment(normalizedEquipment))
       return this.decodeCharacterFromSource(
         settings,
         charIndex,
@@ -1105,7 +1111,7 @@ class DecodeEngine {
     faceVariant: number,
     hairVariant: number,
     hairColour: number,
-    armor: GD.ICharacterArmorSelection,
+    equipment: GD.ICharacterEquipment,
     includeAnimations: boolean,
   ): Promise<ArrayBuffer> {
     return serializeLibrary(
@@ -1115,7 +1121,7 @@ class DecodeEngine {
         faceVariant,
         hairVariant,
         hairColour,
-        armor,
+        equipment,
         includeAnimations,
       ),
     ).buffer as ArrayBuffer;

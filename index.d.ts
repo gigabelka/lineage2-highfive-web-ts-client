@@ -407,6 +407,18 @@ declare global {
                     maxAngle: number
                 }
 
+                /* One `USkeletalMesh` attach coord, as it comes off the mesh's own attach tables.
+                   `bone` is the (normalised) name of a bone on the *host* mesh this mesh can hang
+                   off, and the four vectors are the transform the attachment wants in that bone's
+                   space. Only meaningful on meshes meant to be attached (weapons, accessories). */
+                export interface ISkinnedMeshAttachmentDecodeInfo {
+                    bone: string,
+                    origin: Vector3Arr,
+                    xAxis: Vector3Arr,
+                    yAxis: Vector3Arr,
+                    zAxis: Vector3Arr
+                }
+
                 export interface ISkinnedMeshObjectDecodeInfo extends IBaseObjectDecodeInfo {
                     type: "SkinnedMesh";
                     geometry: string;
@@ -420,6 +432,13 @@ declare global {
                     skinMaterials?: Record<number, string>;
                     /** names the character bundle whose clips drive this mesh (character parts share one animation set) */
                     animationSet?: string;
+                    /** paperdoll slot this mesh was assembled for; absent on the face/body of a plain character */
+                    equipmentSlot?: CharacterEquipmentSlot_T;
+                    /** skeleton root is hung off this bone of the host mesh instead of the actor itself
+                     *  (weapons, helmets, hair accessories) - see `attachBoneChains` in asset-manager */
+                    attachBone?: string;
+                    /** this mesh's own attach table, keyed by alias (see `un-skeletal-mesh.ts`) */
+                    attachments?: Record<string, ISkinnedMeshAttachmentDecodeInfo>;
                     meshScale: Vector3Arr;
                     meshOrigin: Vector3Arr;
                     meshRotOrigin: Vector3Arr;
@@ -715,12 +734,25 @@ declare global {
                     boots: ICharacterArmorOption[]
                 };
 
-                export type ICharacterArmorSelection = {
-                    chest: number,
-                    legs: number,
-                    gloves: number,
-                    boots: number
-                };
+                /* Every paperdoll slot the client can render. The first four swap a naked body part
+                   for an armour mesh (armorgrp.dat), the middle four are separate meshes added on
+                   top and hung off a bone, the last two come from weapongrp.dat. The server only
+                   ever sends the display item id per slot - the mesh class is resolved client-side.
+                   `EQUIPMENT_SLOTS` in `@client/assets/character-equipment` mirrors this list at
+                   runtime; keep the two in sync. */
+                export type CharacterEquipmentSlot_T =
+                    | "chest" | "legs" | "gloves" | "boots"
+                    | "head" | "cloak" | "hair" | "hair2"
+                    | "rhand" | "lhand";
+
+                export type ICharacterEquipment = Record<CharacterEquipmentSlot_T, number>;
+
+                /**
+                 * @deprecated The four body-replacing slots only. Kept so the older
+                 * `loadCharacter`/`resolveArmor` call sites keep compiling - every API that used to
+                 * take this now takes `Partial<ICharacterEquipment>`.
+                 */
+                export type ICharacterArmorSelection = Pick<ICharacterEquipment, "chest" | "legs" | "gloves" | "boots">;
 
                 export interface IBaseZoneDecodeInfo {
                     type: "Sector" | "Zone" | "Sky",
