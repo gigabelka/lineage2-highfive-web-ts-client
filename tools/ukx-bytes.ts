@@ -168,15 +168,25 @@ class Package {
       importCount = r.u32(),
       importOffset = r.u32();
 
-    /* String length is a compat32 that *includes* the trailing NUL; L2 identifiers are short
-       enough that it always fits in one byte, which is why the field reads as a plain length. */
+    /* String length is a compat32 that *includes* the trailing NUL, in characters. A *negative*
+       length means the string is UTF-16, not ANSI - `|len|` wide characters, the last of which is
+       the 2-byte terminator. LineageWeapons.ukx carries Korean weapon names, and reading one of
+       them as "length < 0, so zero characters" silently emits three bogus empty names instead of
+       one, shifting every later name index by +2. That desync is what made `classNameOf` resolve
+       `SkeletalMesh` imports to `Shader`/`FinalBlend`: the name indices in the import table are
+       correct, but the table they index into was built two entries too long. */
     r.seek(nameOffset + CONTENT_OFFSET);
     for (let i = 0; i < nameCount; i++) {
       const len = r.compat32();
       let name = "";
 
-      for (let c = 0; c < Math.max(len - 1, 0); c++) name += String.fromCharCode(r.u8());
-      if (len > 0) r.u8(); // NUL
+      if (len < 0) {
+        for (let c = 0; c < -len - 1; c++) name += String.fromCharCode(r.u16());
+        r.u16(); // wide NUL
+      } else {
+        for (let c = 0; c < Math.max(len - 1, 0); c++) name += String.fromCharCode(r.u8());
+        if (len > 0) r.u8(); // NUL
+      }
 
       this.names.push({ name, flags: r.u32() });
     }
@@ -379,12 +389,18 @@ function walkLodMesh(r: Reader, log: (s: string) => void) {
   log(`  ULodMesh ends @${r.tell()}`);
 }
 
-/* `FJointPos` is FQuaternion + FVector + float + FVector, and the trailing `scale` is read but
-   then overwritten with 1s by the decoder - it still costs 12 bytes on the wire. */
-const JOINT_POS_BYTES = 16 + 12 + 4 + 12;
 const MESH_COORDS_BYTES = 4 * 12;
 
-function walkSkeletalMesh(r: Reader, log: (s: string) => void, exportEnd: number) {
+type Bone_T = {
+  index: number;
+  name: string;
+  nameIdx: number;
+  numChildren: number;
+  parentIndex: number;
+  origin: [number, number, number];
+};
+
+function walkSkeletalMesh(pkg: Package, r: Reader, log: (s: string) => void, exportEnd: number) {
   const start = r.tell();
   const align = (label: string, value: unknown, expected: unknown) =>
     log(`  ${value === expected ? "ok  " : "BAD "} ${label} = ${String(value)}`);
@@ -397,6 +413,7 @@ function walkSkeletalMesh(r: Reader, log: (s: string) => void, exportEnd: number
   const nBones = r.compat32();
   const boneStart = r.tell();
   const parentErrors: number[] = [];
+  const bones: Bone_T[] = [];
   let boneNameOk = 0;
 
   for (let i = 0; i < nBones; i++) {
@@ -404,13 +421,28 @@ function walkSkeletalMesh(r: Reader, log: (s: string) => void, exportEnd: number
     const flags = r.u32();
 
     void flags;
-    r.skip(JOINT_POS_BYTES);
+
+    /* FJointPos = FQuaternion (4f) + FVector (3f) + float + FVector (3f), 44 bytes. The middle
+       vector is the bone's bind-pose position; the trailing vector is a scale the decoder
+       overwrites with 1s but which still costs 12 bytes on the wire, so it has to be stepped
+       over. The position is what tells us whether an attached mesh sits at the origin of its
+       root bone or somewhere else entirely (risk R3). */
+    const quat = [r.f32(), r.f32(), r.f32(), r.f32()];
+    const origin = [r.f32(), r.f32(), r.f32()] as [number, number, number];
+
+    void quat;
+    r.f32();
+    r.skip(12);
 
     const numChildren = r.u32(),
       parentIndex = r.u32();
 
-    void numChildren;
-    if (parentIndex < i || parentIndex === 0xffffffff) boneNameOk++;
+    bones.push({ index: i, name: pkg.names[nameIdx]?.name ?? `<bad ${nameIdx}>`, nameIdx, numChildren, parentIndex, origin });
+
+    /* The root bone legitimately points at itself, so only bones after the first must link
+       strictly backwards. `0xffffffff` is an unset parent. Reading this field as unsigned is what
+       makes the unset case need its own test rather than falling out of `parentIndex < i`. */
+    if (i === 0 || parentIndex < i || parentIndex === 0xffffffff) boneNameOk++;
     else parentErrors.push(i);
   }
 
@@ -419,7 +451,7 @@ function walkSkeletalMesh(r: Reader, log: (s: string) => void, exportEnd: number
       nBones ? ((r.tell() - boneStart) / nBones).toFixed(1) : "-"
     }B/bone)`,
   );
-  align("bones with parentIndex < own index", `${boneNameOk}/${nBones}`, `${nBones}/${nBones}`);
+  align("bones with a valid parent link", `${boneNameOk}/${nBones}`, `${nBones}/${nBones}`);
   if (parentErrors.length) log(`      first bad parent links: ${parentErrors.slice(0, 8).join(", ")}`);
 
   const animationId = r.compat32();
@@ -440,29 +472,70 @@ function walkSkeletalMesh(r: Reader, log: (s: string) => void, exportEnd: number
     r.u32();
   }
   log(`  weightIndices.count = ${nWeights} @${weightStart} -> ${r.tell()} (Σ influences ${totalInfluences})`);
-  align("weightIndices.count == refSkeleton.count", nWeights, nBones);
+  /* Not an `align`: HighFive meshes carry their skinning in the LOD's own skinVertexStream and
+     leave this legacy array empty on every mesh checked (Fighter/LineageWeapons alike), so a zero
+     here is the healthy reading, not a desync. What confirms the cursor is still aligned is that
+     `lodModels.count` below comes out sane. */
+  log(`  (weightIndices is expected to be empty on HighFive meshes; refSkeleton.count = ${nBones})`);
 
   const nInfluences = r.compat32();
 
   r.skip(nInfluences * 4);
   log(`  boneInfluences.count = ${nInfluences}`);
 
-  const nAliases = r.compat32();
+  /* `attachAliases` and `attachBoneNames` are both `FIndexArray` - TArray<TArray<FName-index>>,
+     one inner array per attach point - which is how `un-skeletal-mesh.ts` loads them. Reading
+     them as a flat index list (as this tool used to) consumes the wrong number of bytes and
+     desyncs everything after it, including `attachCoords`. Each name index is resolved through
+     the name table here so the aliases are readable rather than opaque numbers. */
+  const readIndexArray = (label: string): string[][] => {
+    const at = r.tell();
+    const outer = r.compat32();
+    const out: string[][] = [];
 
-  for (let i = 0; i < nAliases; i++) r.compat32();
-  log(`  attachAliases.count = ${nAliases}`);
+    if (outer < 0 || outer > 4096) {
+      log(`  BAD ${label}.outerCount = ${outer} @${at} (implausible, cursor desynced)`);
 
-  const nBoneNames = r.compat32();
+      return out;
+    }
 
-  for (let i = 0; i < nBoneNames; i++) r.compat32();
-  log(`  attachBoneNames.count = ${nBoneNames}`);
+    for (let i = 0; i < outer; i++) {
+      const inner = r.compat32();
+      const names: string[] = [];
+
+      if (inner < 0 || inner > 4096) {
+        log(`  BAD ${label}[${i}].count = ${inner} @${r.tell() - 1} (implausible)`);
+
+        return out;
+      }
+
+      for (let j = 0; j < inner; j++) {
+        const idx = r.compat32();
+
+        names.push(`${pkg.names[idx]?.name ?? "<bad>"}#${idx}`);
+      }
+
+      out.push(names);
+    }
+
+    log(`  ${label} @${at} -> ${r.tell()} (${out.length} inner arrays): ${JSON.stringify(out)}`);
+
+    return out;
+  };
+
+  const attachAliases = readIndexArray("attachAliases");
+  const attachBoneNames = readIndexArray("attachBoneNames");
 
   const coordsAt = r.tell();
   const nCoords = r.compat32();
 
   r.skip(nCoords * MESH_COORDS_BYTES);
+  /* Also empty on HighFive, and this one is load-bearing for the equipment work: with no
+     AttachCoords there is no per-mesh attachment transform to fall back on, so an attached mesh
+     has to be placed by bone name alone. That is why the body skeletons carry explicit
+     Weapon_R_Bone / Shield_L_Bone / Cape_Bone entries. */
   log(`  attachCoords.count = ${nCoords} @${coordsAt} (${MESH_COORDS_BYTES}B each)`);
-  align("attachCoords.count == refSkeleton.count", nCoords, nBones);
+  log(`  (empty on HighFive meshes: no per-mesh attachment transform; attach by named bone)`);
 
   const lodAt = r.tell();
   const nLods = r.compat32();
@@ -470,7 +543,7 @@ function walkSkeletalMesh(r: Reader, log: (s: string) => void, exportEnd: number
   log(`  lodModels.count = ${nLods} @${lodAt} (ends @${r.tell()}), cursor now @${r.tell()}`);
   log(`  skeleton portion @${start}..${r.tell()}, ${exportEnd - r.tell()} bytes remain`);
 
-  return { nLods, lodAt, lodDataAt: r.tell() };
+  return { nLods, lodAt, lodDataAt: r.tell(), bones, attachAliases, attachBoneNames, nCoords };
 }
 
 /* Locate an `FArray<FMeshBone>` by shape rather than by position.
@@ -850,6 +923,16 @@ function cmdInfo(pkg: Package) {
     byClass.set(cls, (byClass.get(cls) ?? 0) + 1);
   }
 
+  /* A name of 63+ characters is encoded with a two-byte compat32 length prefix instead of one.
+     Worth surfacing because it is the boundary at which a reader that assumes a one-byte prefix
+     silently starts reading the string body one byte early. */
+  const longNames = pkg.names.filter((n) => n.name.length >= 63);
+  const longest = pkg.names.reduce((a, b) => (b.name.length > a.name.length ? b : a), pkg.names[0]);
+
+  console.log(
+    `longest name    ${longest.name.length} chars ("${longest.name}"), ${longNames.length} name(s) at the 2-byte length prefix`,
+  );
+
   console.log("exports by class:");
 
   for (const [cls, count] of [...byClass].sort((a, b) => b[1] - a[1]).slice(0, 25))
@@ -904,7 +987,7 @@ function cmdWalk(pkg: Package, name: string) {
   walkPrimitive(r, log);
   walkLodMesh(r, log);
 
-  const { nLods, lodDataAt } = walkSkeletalMesh(r, log, end);
+  const { nLods, lodDataAt } = walkSkeletalMesh(pkg, r, log, end);
 
   r.seek(lodDataAt);
   for (let i = 0; i < nLods; i++) if (walkLodModel(r, log, i, end) === null) break;
@@ -916,13 +999,57 @@ function cmdWalk(pkg: Package, name: string) {
     console.log(`    @${hit.offset} count=${hit.count} ends@${hit.end} (absent from start by ${hit.offset - r.tell()}B)`);
 }
 
+/* `attach` answers the two questions that decide how an attached mesh (weapon, shield, helmet)
+   gets parented to a body bone, and it is deliberately quiet about everything else:
+ *
+ *   1. Which bones does a *body* mesh actually expose? `Weapon_R_Bone` and friends are the whole
+ *      reason a weapon can be parented by name instead of by a per-mesh attachment record.
+ *   2. Where does the *attached* mesh's own bind pose sit? Still centred on its root bone means it
+ *      can be dropped straight onto the target bone; modelled off in character space means it
+ *      needs the mesh's AttachCoords (risk R3 in the equipment plan).
+ */
+function cmdAttach(pkg: Package, name: string) {
+  const exp = pkg.exports.find((e) => e.objectName.toLowerCase() === name.toLowerCase());
+
+  if (!exp) throw new Error(`No export named '${name}'.`);
+
+  const start = pkg.fileOffset(exp),
+    end = start + exp.size;
+
+  console.log(`export #${exp.index} '${exp.objectName}' class=${pkg.classNameOf(exp)} size=${exp.size}`);
+  console.log(`payload file=[${start}, ${end})`);
+
+  const r = new Reader(pkg.data, start);
+  const log = (s: string) => console.log(s);
+
+  walkPrimitive(r, log);
+  walkLodMesh(r, log);
+
+  /* The walk's own log carries the counts and the attach arrays; this adds the decoded skeleton,
+     which is the part that cannot be read off a byte count. */
+  const { bones } = walkSkeletalMesh(pkg, r, log, end);
+
+  console.log(`\nrefSkeleton, decoded: ${bones.length} bones`);
+  for (const b of bones)
+    console.log(
+      `  [${String(b.index).padStart(3)}] ${b.name.padEnd(26)} parent=${String(b.parentIndex).padStart(
+        4,
+      )} children=${String(b.numChildren).padStart(3)} origin=(${b.origin.map((v) => f(v, 3)).join(", ")})`,
+    );
+
+  const interesting = bones.filter((b) => /weapon|shield|sheath|head|spine|cape/i.test(b.name));
+
+  console.log(`\nbones matching /weapon|shield|sheath|head|spine|cape/: ${interesting.length}`);
+  for (const b of interesting) console.log(`  ${b.name} (index ${b.index})`);
+}
+
 function main() {
   const [cmd, file, ...rest] = process.argv.slice(2);
 
   if (!cmd || !file) {
     console.log(
-      "usage: tsx tools/ukx-bytes.ts <info|find|hex|walk> <package> [args...]\n" +
-        "  find <nameRegex>\n  hex <absOffset> <length>\n  walk <exportName>",
+      "usage: tsx tools/ukx-bytes.ts <info|find|hex|walk|attach> <package> [args...]\n" +
+        "  find <nameRegex>\n  hex <absOffset> <length>\n  walk <exportName>\n  attach <exportName>",
     );
     process.exit(1);
   }
@@ -944,6 +1071,8 @@ function main() {
       return cmdVerts(pkg, Number(rest[0]), Number(rest[1]), Number(rest[2] ?? 16));
     case "walk":
       return cmdWalk(pkg, rest[0]);
+    case "attach":
+      return cmdAttach(pkg, rest[0]);
     default:
       throw new Error(`Unknown command '${cmd}'.`);
   }

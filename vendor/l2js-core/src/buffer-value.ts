@@ -92,6 +92,10 @@ class BufferValue<T extends C.ValueTypeNames_T = C.ValueTypeNames_T> {
   private type: C.ValidTypes_T<T>;
   public readonly endianess: "big" | "little" = "little";
 
+  /* `char` is ANSI or UTF-16 depending on the sign of the length prefix of the value last read,
+     so the encoding is a property of the read, not of the type. */
+  private charIsUtf16 = false;
+
   static allocBytes(bytes: number): BufferValue<"buffer"> {
     return new BufferValue<"buffer">(
       Object.freeze({ bytes: bytes, signed: true, name: "buffer" }),
@@ -116,6 +120,7 @@ class BufferValue<T extends C.ValueTypeNames_T = C.ValueTypeNames_T> {
       other.bytes.byteOffset,
       other.bytes.byteLength,
     );
+    this.charIsUtf16 = other.charIsUtf16;
 
     return this;
   }
@@ -127,6 +132,7 @@ class BufferValue<T extends C.ValueTypeNames_T = C.ValueTypeNames_T> {
   public slice(start: number, end: number) {
     const child = new BufferValue(this.type);
     child.bytes = new DataView(this.bytes.buffer, start, end - start);
+    child.charIsUtf16 = this.charIsUtf16;
 
     return child;
   }
@@ -148,11 +154,35 @@ class BufferValue<T extends C.ValueTypeNames_T = C.ValueTypeNames_T> {
       if (this.type.name === "char") {
         const length = new BufferValue(compat32);
         const readBytes = length.readValue(buffer, offset);
+        const charCount = length.value;
 
-        byteOffset = length.value > 0 ? readBytes + 1 : readBytes; // add delimiter unless empty
-        offset = offset + byteOffset - readBytes;
+        /* A *negative* length means the string is UTF-16, not ANSI: `|length|` wide characters,
+           the last of which is the 2-byte terminator. HighFive packages spell some names in
+           Korean (LineageWeapons.ukx has weapon names like this), and reading a negative length as
+           "zero characters" consumes 1 byte instead of `2 * |length|`. That desyncs the name table
+           from that entry onward, silently misnaming every later class, material, bone and
+           animation sequence in the package - `classNameOf` then reports SkeletalMesh exports as
+           `Package.Shader`/`Package.FinalBlend`, and bone lookups by name all miss.
+           The positive case counts characters *including* the trailing NUL, so `byteOffset` carries
+           the length prefix plus the terminator while `type.bytes` carries the string body; the
+           two are summed by the return below. */
+        if (charCount < 0) {
+          byteOffset = readBytes + 2;
+          this.type.bytes = (-charCount - 1) * 2;
+        } else if (charCount > 0) {
+          byteOffset = readBytes + 1;
+          this.type.bytes = charCount - 1;
+        } else {
+          // An empty FString is the length prefix and nothing else - no terminator to account for.
+          byteOffset = readBytes;
+          this.type.bytes = 0;
+        }
 
-        this.type.bytes = Math.max(length.value - 1, 0);
+        this.charIsUtf16 = charCount < 0;
+
+        /* The body starts right after the length prefix - not one byte past its start, which only
+           coincides when the prefix is a single byte (i.e. lengths below 64). */
+        offset = offset + readBytes;
       } else if (this.type.name === "compat32") {
         // Fast compat32 reading using direct DataView access
         const view = new DataView(buffer, offset);
@@ -200,7 +230,7 @@ class BufferValue<T extends C.ValueTypeNames_T = C.ValueTypeNames_T> {
   }
 
   public get string(): string {
-    if (this.type.name === "utf16") {
+    if (this.type.name === "utf16" || (this.type.name === "char" && this.charIsUtf16)) {
       return decoderUTF16.decode(this.bytes);
     }
 

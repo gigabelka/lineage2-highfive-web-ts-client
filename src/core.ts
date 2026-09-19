@@ -28,7 +28,11 @@ async function startCore() {
     },
     cache: {
       enabled: true,
-      version: 15, // bump when decode logic changes, invalidates all previously cached sectors
+      /* 16: the name-table reader now decodes UTF-16 (negative-length) FStrings. Bone names,
+         animation sequence names and material names are all baked into the decode info from that
+         table, so anything cached before 16 holds names read off a table that had silently
+         desynced from its first Korean entry onward. */
+      version: 16, // bump when decode logic changes, invalidates all previously cached sectors
     },
     decodeWorkerPoolSize: 3, // num workers, 0 will run on main thread
     textures,
