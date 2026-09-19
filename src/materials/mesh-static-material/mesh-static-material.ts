@@ -85,6 +85,13 @@ function applyParameters({
   Object.assign((uniforms[name].value = {}), restUniforms);
   Object.assign(defines, parameters.defines);
 
+  // the map size is uploaded as a flat uniform, never as a struct member - see the
+  // note on shDiffuseSize below
+  const sizeUniform = uniforms[`${name}Size`];
+  const mapSize = (restUniforms as any).map?.size;
+  if (sizeUniform !== undefined && mapSize !== undefined)
+    sizeUniform.value = mapSize;
+
   if (parameters.isUsingMap) {
     if ((parameters as GD.IDecodedSpriteParameter).isSprite) {
       sprites[name] = {
@@ -170,6 +177,14 @@ export default class MeshStaticMaterial extends ShaderMaterial {
           shSpecular: new Uniform(null),
           shSpecularMask: new Uniform(null),
           shMaterial2: new Uniform(null),
+
+          // the texture size lives outside the sampler struct on purpose: ANGLE/D3D11
+          // packs a numeric member of a sampler-carrying struct into the same constant
+          // register as `diffuse`, so writing one clobbers the other (Chrome-only).
+          shDiffuseSize: new Uniform(new Vector2(1, 1)),
+          shOpacitySize: new Uniform(new Vector2(1, 1)),
+          shSpecularSize: new Uniform(new Vector2(1, 1)),
+          shSpecularMaskSize: new Uniform(new Vector2(1, 1)),
 
           ambient: new Uniform({
             color: new Color(1, 1, 1),

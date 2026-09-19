@@ -30,9 +30,12 @@ uniform float opacity;
 #include <clipping_planes_pars_fragment>
 
 #if defined(USE_UV) && (defined(USE_MAP_DIFFUSE) || defined(USE_MAP_OPACITY) || defined(USE_MAP_SPECULAR) || defined(USE_MAP_SPECULAR_MASK) || defined(USE_MAP_MATERIAL2))
+    // NOTE: keep this struct free of numeric members. ANGLE/D3D11 (Chrome) packs a
+    // numeric member of a sampler-carrying struct into the same constant register as
+    // `diffuse`, so uploading the size silently overwrites `diffuse` and buildings and
+    // pawns render blown-out yellow. The map size rides shXSize in the vertex shader.
     struct TextureData {
         sampler2D texture;
-        vec2 size;
     };
 
     #define MAX_TRANSFORM_STAGES 2
